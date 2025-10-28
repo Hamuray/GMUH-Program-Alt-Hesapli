@@ -538,6 +538,41 @@
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 .alert-enter { animation: fadeInScale .18s ease-out; }
+    .alerts-list{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .alerts-list .muted{
+      font-size:13px;
+    }
+    #alertsFieldset.alerts-active{
+      background:#fef2f2;
+      border-color:#fecdd3;
+    }
+    #alertsFieldset.alerts-active legend{
+      color:#9f1239;
+    }
+    #alertsContent.alerts-has-warning{
+      background:#fff1f2;
+      border-radius:12px;
+      padding:12px;
+    }
+    .voucher-row-warning{
+      background:#fce7f3 !important;
+    }
+    .voucher-row-warning td{
+      color:#991b1b;
+    }
+    .voucher-row-quantity-warning{
+      background:#fef9c3 !important;
+    }
+    .voucher-row-quantity-warning td{
+      color:#854d0e;
+    }
+    #voucherWarnings{
+      margin-top:8px;
+    }
 
   </style>
 </head>
@@ -605,6 +640,7 @@
           </tr>
         </tfoot>
       </table>
+      <div id="voucherWarnings" class="alerts-list" style="display:none;"></div>
       <div class="toolbar" style="margin-top:8px; display:flex; justify-content:space-between; gap:8px">
 
         <div style="display:flex; gap:8px">
@@ -707,6 +743,15 @@
             </tr>
           </tfoot>
         </table>
+      </div>
+    </fieldset>
+
+    <fieldset id="alertsFieldset">
+      <legend><button class="toggle-btn" id="toggleAlerts" aria-expanded="false" aria-controls="alertsContent">[+]</button>Hatalar ve Uyarılar</legend>
+      <div id="alertsContent" class="collapsed-content">
+        <div id="alertsList" class="alerts-list">
+          <div class="muted">Şu anda gösterilecek uyarı yok.</div>
+        </div>
       </div>
     </fieldset>
 
@@ -1554,6 +1599,7 @@ function randomThousandBetween(min=10000, max=50000){
     }
     LAST_USED_ACCOUNT = sel.value || LAST_USED_ACCOUNT;
     markDirty();
+    recalcVoucherTotals();
   });
   sel.addEventListener('focus', ()=>{
     if (sel.value) LAST_USED_ACCOUNT = sel.value;
@@ -1699,10 +1745,28 @@ function randomThousandBetween(min=10000, max=50000){
   function recalcVoucherTotals(){
     const rows=document.querySelectorAll('#voucherTable tbody tr');
     let td=0, tc=0, tq=0, active=0;
+    let missing153 = false, missing600 = false;
+    const EPS = 1e-4;
+    let unexpectedQty = false;
     rows.forEach(r=>{
+      r.classList.remove('voucher-row-warning','voucher-row-quantity-warning');
+      const account=(r.children[0].querySelector('select').value || '').trim();
       const dv=toNum(r.children[1].querySelector('input').value);
       const cv=toNum(r.children[2].querySelector('input').value);
       const qv=toNum(r.children[3].querySelector('input').value);
+      const isActiveLine = account && (dv>0 || cv>0);
+      if (isActiveLine && account.startsWith('153') && Math.abs(qv) <= EPS){
+        missing153 = true;
+        r.classList.add('voucher-row-warning');
+      }
+      if (isActiveLine && account.startsWith('600') && Math.abs(qv) <= EPS){
+        missing600 = true;
+        r.classList.add('voucher-row-warning');
+      }
+      if (account && Math.abs(qv) > EPS && !(account.startsWith('153') || account.startsWith('600'))){
+        unexpectedQty = true;
+        r.classList.add('voucher-row-quantity-warning');
+      }
       td+=dv; tc+=cv; tq+=qv; if (dv>0 || cv>0) active++;
     });
     document.getElementById('v_tdb').textContent=fmt(td);
@@ -1737,6 +1801,38 @@ function randomThousandBetween(min=10000, max=50000){
       if (warnState) totalsRow.classList.add('status-warn');
       else if (canSave) totalsRow.classList.add('status-ok');
     }
+
+    showVoucherWarnings({ missing153, missing600, unexpectedQty });
+  }
+
+  function showVoucherWarnings({ missing153 = false, missing600 = false, unexpectedQty = false } = {}){
+    const panel = document.getElementById('voucherWarnings');
+    if (!panel) return;
+
+    panel.replaceChildren();
+
+    const messages = [];
+    if (missing153) messages.push('153 hesap kullandınız ve miktar bilgisi girmediniz. Kontrol ediniz.');
+    if (missing600) messages.push('600 hesap kullandınız ve miktar bilgisi girmediniz. Kontrol ediniz.');
+    if (unexpectedQty) messages.push('153 ve 600 hesap dışında bir hesaba miktar bilgisi giriyorsunuz. Emin misiniz?');
+
+    if (!messages.length){
+      panel.style.display = 'none';
+      return;
+    }
+
+    messages.forEach(msg=>{
+      const box = document.createElement('div');
+      box.className = 'alert alert-error alert-enter';
+      const icon = document.createElement('i');
+      icon.textContent = '⚠';
+      const span = document.createElement('span');
+      span.textContent = msg;
+      box.append(icon, span);
+      panel.appendChild(box);
+    });
+
+    panel.style.display = 'flex';
   }
 
   // ---------- Düzenleme modu (Pasif/Aktif) ----------
@@ -2353,8 +2449,112 @@ function renderMizan(){
   document.getElementById('tAlacakBakiye').textContent = fmtNoZero(totalAlacakBakiye);
   document.getElementById('tMiktar').textContent = fmtNoZero(totalQuantity);
 
+  updateAlertsPanel({ directBalances, dateRange: { from, to } });
+
   highlightMizanSelection();
   if (CURRENT_MIZAN_SELECTED_CODE) syncReportAccountSelection(CURRENT_MIZAN_SELECTED_CODE);
+}
+
+function updateAlertsPanel({ directBalances = {}, dateRange = {} } = {}){
+  const panel = document.getElementById('alertsList');
+  const container = document.getElementById('alertsContent');
+  const alertsFieldset = document.getElementById('alertsFieldset');
+  if (!panel) return;
+
+  const EPS = 1e-2;
+  const messages = [];
+  const aggregated = {};
+  const missingQtyVouchers = [];
+  const fromDate = dateRange.from || null;
+  const toDate = dateRange.to || null;
+
+  Object.entries(directBalances).forEach(([code, bal]) => {
+    if (!code) return;
+    const safeDebit = toNum(bal?.debit);
+    const safeCredit = toNum(bal?.credit);
+    const chain = [code, ...splitAncestors(code)];
+    chain.forEach(key => {
+      if (!key) return;
+      if (!aggregated[key]) aggregated[key] = { debit: 0, credit: 0 };
+      aggregated[key].debit += safeDebit;
+      aggregated[key].credit += safeCredit;
+    });
+  });
+
+  Object.entries(aggregated).forEach(([code, bal]) => {
+    const meta = getAccMeta(code);
+    if (!meta || !meta.side) return;
+    const diff = toNum(bal.debit) - toNum(bal.credit);
+    if (Math.abs(diff) <= EPS) return;
+    const actualSide = diff >= 0 ? 'B' : 'A';
+    if (actualSide !== meta.side) {
+      const label = meta.name ? `${code} ${meta.name}` : code;
+      messages.push(`${label} hesabı ters bakiye vermektedir.`);
+    }
+  });
+
+  const suffixes = ['01', '02', '03'];
+  suffixes.forEach(suffix => {
+    const inventoryCode = `153.${suffix}`;
+    const salesCode = `600.${suffix}`;
+    const inventoryQty = toNum(directBalances[inventoryCode]?.quantity);
+    const salesQty = toNum(directBalances[salesCode]?.quantity);
+    if (Math.abs(inventoryQty) <= EPS && Math.abs(salesQty) <= EPS) return;
+    if (salesQty - inventoryQty > EPS) {
+      messages.push(`Satış miktarı alış miktarından fazla ${inventoryCode} / ${salesCode} hesaplardaki miktarları kontrol ediniz.`);
+    }
+  });
+
+  (DB.vouchers || []).forEach(voucher => {
+    if (!voucher || !Array.isArray(voucher.lines)) return;
+    const isoDate = ymd(voucher.date);
+    const dt = parseDateInput(isoDate);
+    if (fromDate && dt && dt < fromDate) return;
+    if (toDate && dt && dt > toDate) return;
+
+    const hasMissing = voucher.lines.some(line => {
+      if (!line) return false;
+      const code = String(line.account || '');
+      if (!code.startsWith('153') && !code.startsWith('600')) return false;
+      const hasValue = toNum(line.debit) > EPS || toNum(line.credit) > EPS;
+      if (!hasValue) return false;
+      const qty = Math.abs(toNum(line.quantity));
+      return qty <= EPS;
+    });
+
+    if (hasMissing) {
+      const niceDate = dmyFromISO(isoDate) || (isoDate || '-');
+      const noText = voucher.no ? String(voucher.no) : '(numarasız)';
+      missingQtyVouchers.push(`${niceDate} tarihli ve ${noText} nolu fişte miktar bilgisi girilmemiştir. Kontrol ediniz.`);
+    }
+  });
+
+  missingQtyVouchers.forEach(msg => messages.push(msg));
+
+  panel.innerHTML = '';
+
+  if (!messages.length) {
+    container?.classList.remove('alerts-has-warning');
+    alertsFieldset?.classList.remove('alerts-active');
+    const ok = document.createElement('div');
+    ok.className = 'muted';
+    ok.textContent = 'Şu anda gösterilecek uyarı yok.';
+    panel.appendChild(ok);
+    return;
+  }
+
+  container?.classList.add('alerts-has-warning');
+  alertsFieldset?.classList.add('alerts-active');
+  messages.forEach(msg => {
+    const box = document.createElement('div');
+    box.className = 'alert alert-error alert-enter';
+    const icon = document.createElement('i');
+    icon.textContent = '⚠';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    box.append(icon, span);
+    panel.appendChild(box);
+  });
 }
 
 function setupMizanColumnResize(){
@@ -5627,6 +5827,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
     document.getElementById('btnMizan').addEventListener('click', renderMizan);
     document.getElementById('btnPrintMizan').addEventListener('click', printMizan);
     setupCollapsible('toggleMizan', 'mizanContent');
+    setupCollapsible('toggleAlerts', 'alertsContent');
     
     // Mizan seçimlerinde otomatik yükleme
     document.getElementById('mzFrom').addEventListener('change', renderMizan);
