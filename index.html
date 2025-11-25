@@ -9,6 +9,70 @@
     *{box-sizing:border-box}
     body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
     .container{max-width:1100px; margin:28px auto; padding:0 16px}
+    .header-bar{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px}
+    .user-badge{
+      min-width:260px;
+      background:#fff9c4;
+      border:1px solid #f2d98d;
+      border-radius:12px;
+      padding:10px 12px;
+      text-align:right;
+      box-shadow:0 6px 20px rgba(0,0,0,0.08);
+      cursor:pointer;
+    }
+    .user-badge .user-line{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      align-items:center;
+      flex-wrap:nowrap;
+      white-space:nowrap;
+    }
+    .user-badge .user-short{font-weight:700; font-size:14px; color:#111;}
+    .login-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:10000;
+      transition:opacity .2s ease, visibility .2s ease;
+    }
+    .login-backdrop.hidden{
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+    }
+    .login-card{
+      width:min(420px, calc(100vw - 32px));
+      background:#fff;
+      border-radius:16px;
+      padding:24px;
+      box-shadow:0 16px 40px rgba(0,0,0,0.15);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .login-card h2{margin:0 0 6px; font-size:22px}
+    .login-card label{font-weight:700; margin-top:4px}
+    .login-card input{
+      width:100%;
+      height:46px;
+      border-radius:12px;
+      border:1px solid #d1d5db;
+      padding:10px 12px;
+      font-size:15px;
+    }
+    .login-card input:focus{outline:2px solid #2563eb; border-color:#2563eb}
+    .login-card .login-error{color:#b91c1c; font-size:13px; min-height:18px}
+    .login-card button.primary{
+      height:46px;
+      font-size:15px;
+      border-radius:12px;
+      background:#111827;
+    }
+    body.login-locked{overflow:hidden;}
     h1{margin:0 0 16px; font-size:28px}
     fieldset{border:1px solid var(--line); background:var(--card); border-radius:14px; padding:14px; margin:14px 0}
     legend{padding:0 6px; font-weight:700; display:flex; align-items:center; gap:8px;}
@@ -399,6 +463,43 @@
   .coa-list .row .coa-col-balance { width:120px; min-width:120px; max-width:120px; text-align:right; flex-shrink:0; border-right: 1px solid #eee; }
   .coa-list .row .coa-col-side { width:60px; min-width:60px; max-width:60px; text-align:center; flex-shrink:0; border-right: 1px solid #eee; }
   .coa-list .row .coa-col-reverse { width:100px; min-width:100px; max-width:100px; text-align:center; flex-shrink:0; }
+
+  /* Hesap planı modalı: daha geniş ve başlık sabit kalsın */
+  #coaModal .modal-card{
+    width:min(1100px, calc(100vw - 24px));
+    max-height:90vh;
+  }
+  #coaModal .modal-body{
+    flex:1 1 auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    overflow:hidden;
+    min-height:0;
+  }
+  #coaList{
+    flex:1 1 auto;
+    overflow:auto;
+    min-height:0;
+    position:relative;
+    padding-bottom:8px;
+  }
+  #coaList .coa-header{
+    position:sticky;
+    top:0;
+    z-index:2;
+    box-shadow:0 2px 4px rgba(0,0,0,0.08);
+  }
+  #coaList .coa-header,
+  #coaList .row{
+    font-size:10pt;
+    line-height:1.3;
+  }
+  #coaList .row.coa-selected{
+    background:#fde2e8 !important;
+    color:#831843 !important;
+    border-color:#f8b4c6;
+  }
   
   /* Fiş listesi modalını açan etikete tıklanabilir görünüm */
   #openVoucherListModal {
@@ -579,7 +680,14 @@
 
 <body>
   <div class="container">
-    <h1>Genel Muhasebe Programı</h1>
+    <div class="header-bar">
+      <h1 style="margin-bottom:10px">Genel Muhasebe Programı</h1>
+      <div id="userBadge" class="user-badge" aria-live="polite" role="button" title="Bilgileri düzenlemek için tıklayın">
+        <div class="user-line">
+          <span class="user-short">-</span>
+        </div>
+      </div>
+    </div>
 
     <fieldset>
       <legend>Fiş Girişi</legend>
@@ -668,7 +776,7 @@
             <option value="demirbas">Demirbaş Alımı</option>
             <option value="banka2kasa">Bankadan Kasaya</option>
             <option value="smm">Satılan Mal Maliyeti</option>
-            <option value="ucret">Ücret Hakedişi</option>
+            <option value="ucretTahakkuk">Ücret Tahakkuku Asgari Ücret</option>
             <option value="yansitma">Yansıtma Kaydı</option>
           </select>
         </div>
@@ -756,7 +864,7 @@
     </fieldset>
 
     <fieldset>
-      <legend><button class="toggle-btn" id="toggleReports" aria-expanded="false" aria-controls="reportsContent">[+]</button>Raporlar (Yeni Sekmede)</legend>
+      <legend><button class="toggle-btn" id="toggleReports" aria-expanded="false" aria-controls="reportsContent">[+]</button>Raporlar</legend>
       <div id="reportsContent" class="collapsed-content">
         <div class="reports-grid">
           <div class="report-field">
@@ -816,6 +924,17 @@
     <div class="hint">©Ali Hakan Mutluay - amutluay@gmail.com - 
       <a href="https://www.muhasebe.info" target="_blank" rel="noopener noreferrer">www.muhasebe.info</a>
     </div>
+<div id="loginModal" class="login-backdrop hidden" aria-hidden="true">
+  <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <h2 id="loginTitle">Kullanıcı Girişi</h2>
+    <label for="loginCode">Kullanıcı Kodu</label>
+    <input type="text" id="loginCode" placeholder="muh01 / isl01" autocomplete="off" maxlength="5">
+    <label for="loginName">Ad Soyad</label>
+    <input type="text" id="loginName" placeholder="Adınızı giriniz" autocomplete="name">
+    <div id="loginError" class="login-error" aria-live="assertive"></div>
+    <button id="loginSubmit" class="primary" type="button">Giriş Yap</button>
+  </div>
+</div>
 <div id="coaModal" class="modal-backdrop" aria-hidden="true">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="coaTitle">
     <div class="modal-head">
@@ -946,6 +1065,122 @@
   function markDirty(){
     FORM_DIRTY = true;
     setSavedMessage(false);
+  }
+
+  // --- Kullanıcı girişi ---
+  const USER_INFO_KEY = 'bmuhasebe_user_info';
+  let USER_INFO = { code:'', name:'' };
+
+  function normalizeUserCode(code){
+    return (code || '').toString().trim().toLowerCase();
+  }
+  function isValidUserCode(raw){
+    const m = normalizeUserCode(raw).match(/^(muh|isl)(\d{2})$/);
+    if (!m) return false;
+    const num = parseInt(m[2], 10);
+    return num >= 1 && num <= 99;
+  }
+  function loadStoredUserInfo(){
+    try{
+      const raw = localStorage.getItem(USER_INFO_KEY);
+      if (!raw) return { code:'', name:'' };
+      const parsed = JSON.parse(raw);
+      if (parsed && isValidUserCode(parsed.code) && parsed.name){
+        return { code: normalizeUserCode(parsed.code), name: String(parsed.name).trim() };
+      }
+    }catch{}
+    return { code:'', name:'' };
+  }
+  function saveUserInfo(){
+    try{ localStorage.setItem(USER_INFO_KEY, JSON.stringify(USER_INFO)); }catch{}
+  }
+  function getUserShortLabel(){
+    const code = USER_INFO.code || '';
+    const name = USER_INFO.name || '';
+    if (code && name) return `${code}-${name}`;
+    if (code) return code;
+    if (name) return name;
+    return '-';
+  }
+  function updateUserBadge(){
+    const badge = document.getElementById('userBadge');
+    if (!badge) return;
+    const shortEl = badge.querySelector('.user-short');
+    if (shortEl) shortEl.textContent = getUserShortLabel();
+  }
+  function setUserInfo(code, name){
+    USER_INFO = { code: normalizeUserCode(code), name: String(name || '').trim() };
+    updateUserBadge();
+    saveUserInfo();
+  }
+  function showLoginError(msg){
+    const el = document.getElementById('loginError');
+    if (el) el.textContent = msg || '';
+  }
+  function showLoginModal(prefill=true){
+    const modal = document.getElementById('loginModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden','false');
+    document.body.classList.add('login-locked');
+    const codeInput = document.getElementById('loginCode');
+    const nameInput = document.getElementById('loginName');
+    if (prefill){
+      if (codeInput) codeInput.value = USER_INFO.code || '';
+      if (nameInput) nameInput.value = USER_INFO.name || '';
+    }
+    showLoginError('');
+    setTimeout(()=>{ if(codeInput) codeInput.focus(); }, 50);
+  }
+  function hideLoginModal(){
+    const modal = document.getElementById('loginModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden','true');
+    document.body.classList.remove('login-locked');
+  }
+  function handleLoginSubmit(){
+    const codeInput = document.getElementById('loginCode');
+    const nameInput = document.getElementById('loginName');
+    const code = codeInput ? codeInput.value : '';
+    const name = nameInput ? nameInput.value : '';
+
+    if (!isValidUserCode(code)){
+      showLoginError('Kullanıcı kodu muh01-muh99 veya isl01-isl99 olmalıdır.');
+      return;
+    }
+    if (!name.trim()){
+      showLoginError('Ad Soyad boş bırakılamaz.');
+      return;
+    }
+    showLoginError('');
+    setUserInfo(code, name);
+    hideLoginModal();
+  }
+  function renderReportUserBox(){
+    const shortLabel = getUserShortLabel();
+    if (shortLabel === '-') return '';
+    const safeShort = escapeHTML(shortLabel);
+    return `<div class="report-user"><span class="short">${safeShort}</span></div>`;
+  }
+  function initUserLoginUI(){
+    USER_INFO = loadStoredUserInfo();
+    updateUserBadge();
+    const badge = document.getElementById('userBadge');
+    if (badge) badge.addEventListener('click', ()=> showLoginModal(true));
+
+    const submitBtn = document.getElementById('loginSubmit');
+    if (submitBtn) submitBtn.addEventListener('click', handleLoginSubmit);
+
+    const codeInput = document.getElementById('loginCode');
+    const nameInput = document.getElementById('loginName');
+    [codeInput, nameInput].forEach(inp=>{
+      if (!inp) return;
+      inp.addEventListener('keydown', ev=>{ if(ev.key === 'Enter') handleLoginSubmit(); });
+      inp.addEventListener('input', ()=> showLoginError(''));
+    });
+
+    showLoginModal(true);
   }
 
   // --- Son kullanılan/odaklanan hesap ve odak satırı ---
@@ -1466,6 +1701,10 @@ function randomThousandBetween(min=10000, max=50000){
   const minK = Math.ceil(min/1000), maxK = Math.floor(max/1000);
   const k = Math.floor(Math.random() * (maxK - minK + 1)) + minK;
   return k * 1000;
+}
+
+function randomIntBetween(min, max){
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
   function getAccName(code){
@@ -2718,6 +2957,33 @@ function printMizan(){
     overflow:hidden;
     text-overflow:ellipsis;
   }
+  .report-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .report-headings{flex:1 1 300px;}
+  .report-user{
+    min-width:230px;
+    background:#fff9c4;
+    border:1px solid #f2d98d;
+    border-radius:10px;
+    padding:10px 12px;
+    text-align:right;
+    box-shadow:0 6px 16px rgba(0,0,0,0.08);
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:8px;
+    flex-wrap:nowrap;
+    white-space:nowrap;
+  }
+  .report-user .short{font-weight:700; font-size:14px; color:#111;}
+  @media(max-width:700px){
+    .report-user{text-align:left; justify-content:flex-start;}
+  }
 `;
 
     const now = new Date();
@@ -2725,8 +2991,13 @@ function printMizan(){
     const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>${escapeHTML(title)}</title><style>${css}</style></head>
     <body>
       <div class="toolbar"><button onclick="window.print()">Yazdır</button></div>
-      <h1>${escapeHTML(title)}</h1>
-      <div class="meta">${escapeHTML(meta)}</div>
+      <div class="report-top">
+        <div class="report-headings">
+          <h1>${escapeHTML(title)}</h1>
+          <div class="meta">${escapeHTML(meta)}</div>
+        </div>
+        ${renderReportUserBox() || ''}
+      </div>
       ${innerHTML}
     </body></html>`;
     const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
@@ -4747,20 +5018,41 @@ function makeVoucherMainHTML(voucher){
 
   // ---------- Veri Yönetimi ----------
   function exportTSV(){
-    const headers = ['Tarih','FişNo','FişAçıklaması','HesapKodu','Borç','Alacak','Miktar','Açıklama'];
+    const headers = ['Tarih','FişNo','FişAçıklaması','HesapKodu','HesapAdı','Borç','Alacak','Miktar','Açıklama'];
     const rows = [headers.join('\t')];
     DB.vouchers.forEach(v=>{
       const tarih = dmyFromISO(v.date);
       const fisNo = v.no ?? '';
       const fisAc = v.desc ?? '';
       (v.lines||[]).forEach(ln=>{
-        rows.push([tarih,fisNo,fisAc,ln.account||'',fmt(toNum(ln.debit)),fmt(toNum(ln.credit)),fmt(toNum(ln.quantity)),ln.desc||''].join('\t'));
+        const accMeta = getAccMeta(ln.account || '');
+        const accName = accMeta?.name || '';
+        rows.push([
+          tarih,
+          fisNo,
+          fisAc,
+          ln.account||'',
+          accName,
+          fmt(toNum(ln.debit)),
+          fmt(toNum(ln.credit)),
+          fmt(toNum(ln.quantity)),
+          ln.desc||''
+        ].join('\t'));
       });
     });
     const tsv = '\uFEFF' + rows.join('\n');
     const blob = new Blob([tsv], {type:'text/tab-separated-values;charset=utf-8'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'basit-muhasebe-fisler.tsv'; a.click();
+    const a = document.createElement('a'); a.href = url;
+
+    const now = new Date();
+    const pad = (n)=> String(n).padStart(2,'0');
+    const dateStr = `${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear()}`;
+    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const codePart = (USER_INFO.code || 'kod').replace(/[^a-z0-9]/gi,'') || 'kod';
+    const nameSlug = (slugTR(USER_INFO.name || '') || 'kullanici').replace(/\s+/g,'_');
+    a.download = `Yedek_${codePart}_${nameSlug}_${dateStr}_${timeStr}.tsv`;
+    a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 1000);
   }
 
@@ -4786,6 +5078,10 @@ function makeVoucherMainHTML(voucher){
         .replace(/ü/g,'u').replace(/Ü/g,'u').trim();
 
       const unquote = s => String(s ?? '').replace(/^"(.*)"$/, '$1').trim();
+      const isSubAccountCode = code => /\d{3}\./.test(code);
+      const hasSubAccount = code =>
+        Array.isArray(SUBACCOUNTS) && SUBACCOUNTS.some(s => s.code === code);
+      const accountNamesFromFile = new Map(); // code -> ad
 
       // Başlık indeksleri (sende var olan esnek kurallarla aynı)
       const headers = headerLine.split(delim).map(h=>norm(h));
@@ -4794,6 +5090,7 @@ function makeVoucherMainHTML(voucher){
         fisno:  headers.findIndex(h=>h.includes('fis') && h.includes('no')),
         fisac:  headers.findIndex(h=>h.includes('fis') && h.includes('acik')),
         hesap:  headers.findIndex(h=>h.includes('hesap') && h.includes('kodu')),
+        hesapad: headers.findIndex(h=>h.includes('hesap') && (h.includes('adi') || h.endsWith('ad')) && !h.includes('kod')),
         borc:   headers.findIndex(h=>h.startsWith('borc')),
         alacak: headers.findIndex(h=>h.startsWith('alacak')),
         miktar: headers.findIndex(h=>h.startsWith('miktar')),
@@ -4808,6 +5105,7 @@ function makeVoucherMainHTML(voucher){
 
       // >>> YENİ: Dosyada geçen TÜM hesap kodlarını toplayacağız
       const seenAccounts = new Set();
+      const subAccountsInFile = new Set();
 
       for(let i=1;i<lines.length;i++){
         const parts = lines[i].split(delim);
@@ -4820,6 +5118,7 @@ function makeVoucherMainHTML(voucher){
         const no   = unquote(parts[idx.fisno] ?? '').toString().trim();
         const fAc  = idx.fisac>-1 ? unquote(parts[idx.fisac] ?? '').toString().trim() : '';
         const hesap= unquote(parts[idx.hesap] ?? '').toString().trim();
+        const hesapAd = idx.hesapad>-1 ? unquote(parts[idx.hesapad] ?? '').toString().trim() : '';
         const borc = toNum(unquote(parts[idx.borc]));
         const alac = toNum(unquote(parts[idx.alacak]));
         const miktar = idx.miktar > -1 ? toNum(unquote(parts[idx.miktar])) : 0;
@@ -4830,6 +5129,10 @@ function makeVoucherMainHTML(voucher){
 
         // >>> YENİ: görülen hesap kodlarını topla
         seenAccounts.add(hesap);
+        if (isSubAccountCode(hesap)) subAccountsInFile.add(hesap);
+        if (hesap && hesapAd && !accountNamesFromFile.has(hesap)) {
+          accountNamesFromFile.set(hesap, hesapAd);
+        }
 
         const key = `${iso}|${no}`;
         if(!groups.has(key)) groups.set(key, {date: iso, no: no, desc: fAc, lines: []});
@@ -4843,21 +5146,45 @@ function makeVoucherMainHTML(voucher){
       // Kural: Bu tip kodlar SUBACCOUNTS içinde tanımlı değilse import iptal.
       const missingSubs = [];
       if (seenAccounts.size > 0) {
-        const isSub = code => /\d{3}\./.test(code); // 3 haneli kök + nokta
-        const hasSub = code =>
-          Array.isArray(SUBACCOUNTS) && SUBACCOUNTS.some(s => s.code === code);
-
-        for (const code of seenAccounts) {
-          if (isSub(code) && !hasSub(code)) {
-            missingSubs.push(code);
-          }
+        for (const code of subAccountsInFile) {
+          if (!hasSubAccount(code)) missingSubs.push(code);
         }
       }
 
+      let autoOpenedSubCount = 0;
       if (missingSubs.length > 0) {
-        // İstenen mesaj: tüm import’u engelle
-        // (İstersen ilk birkaç kodu örnek verebilirsin; ama ana mesaj şart)
-        throw new Error("bazı alt hesaplar programda yok, önce alt hesapları tanımlayınız");
+        const shouldCreate = confirm('TSV içe aktarma hatası: bazı alt hesaplar programda yok. Alt hesaplar açılsın mı? (Mevcut fişler silinecek ve yeni alt hesaplar açılarak yeni fişler kaydedilecektir.)');
+        if (!shouldCreate) {
+          throw new Error("bazı alt hesaplar programda yok, işlem iptal edildi.");
+        }
+
+        // Eski veriyi temizle, eksik olan tüm alt hesapları (dosyada geçenlerin tamamı) aç
+        const previousNames = new Map(SUBACCOUNTS.map(sa => [sa.code, sa.name]));
+        const subList = Array.from(subAccountsInFile).sort((a, b) => a.localeCompare(b));
+
+        DB.vouchers = [];
+        saveDB();
+
+        SUBACCOUNTS.splice(0, SUBACCOUNTS.length);
+
+        const makeAutoName = (code) => {
+          const parts = code.split('.');
+          const suffix = parts.slice(1).join('.');
+          const main = ACCOUNTS.find(a => a.code === code.slice(0,3));
+          const rootName = main ? main.name : 'Alt Hesap';
+          return `${rootName} (${suffix})`;
+        };
+
+        subList.forEach(code => {
+          const name = accountNamesFromFile.get(code) || previousNames.get(code) || makeAutoName(code);
+          SUBACCOUNTS.push({ code, name });
+          autoOpenedSubCount++;
+        });
+
+        saveSubaccounts();
+        refreshAllAccountSelectElements();
+        try{ renderCoaList(); }catch(_){}
+        newVoucher();
       }
 
       // --- Buradan sonrası aynı: fişleri kaydet, özet mesajı ver ---
@@ -4870,7 +5197,7 @@ function makeVoucherMainHTML(voucher){
       refreshVoucherList();
       renderMizan();
 
-      const msg = `TSV içe aktarma tamamlandı. Başarılı fiş: ${ok}${fail?`, Hatalı: ${fail}`:''}`;
+      const msg = `TSV içe aktarma tamamlandı. Başarılı fiş: ${ok}${fail?`, Hatalı: ${fail}`:''}${autoOpenedSubCount ? `, Açılan alt hesap: ${autoOpenedSubCount}` : ''}`;
       if(fail) alert(msg + '\nİlk hata: ' + (errs[0]||'')); else alert(msg);
 
     }catch(e){
@@ -5028,6 +5355,11 @@ function importAccountsTSV(file){
 
       // UI güncellemeleri
       refreshAllAccountSelectElements();
+      // Hesap planı modalı açıksa listeyi anında tazele
+      const coaModal = document.getElementById('coaModal');
+      if (coaModal && coaModal.classList.contains('show')) {
+        showCoaModal();
+      }
       newVoucher();
       refreshVoucherList();
       renderMizan();
@@ -5152,10 +5484,11 @@ function applyTemplateByKey(key){
     const base = randomThousandBetween(50000, 100000); // 50.000–100.000
     const kdvAmount = base * 0.20;
     const totalAmount = base + kdvAmount;
+    const quantity = randomIntBetween(400, 500);
 
-    addVoucherRow({ account: '153', debit: base,        desc: 'mal alış faturası' });
-    addVoucherRow({ account: '191', debit: kdvAmount,   desc: 'mal alış faturası KDV' });
-    addVoucherRow({ account: '320', credit: totalAmount,desc: 'mal alış faturası toplam' });
+    addVoucherRow({ account: '153', debit: base, quantity: quantity, desc: 'mal alış faturası' });
+    addVoucherRow({ account: '191', debit: kdvAmount, desc: 'mal alış faturası KDV' });
+    addVoucherRow({ account: '320', credit: totalAmount, desc: 'mal alış faturası toplam' });
 
     document.getElementById('v_desc').value = 'Alış Faturası';
   }
@@ -5164,10 +5497,11 @@ function applyTemplateByKey(key){
     const base = randomThousandBetween(50000, 100000); // 50.000–100.000
     const kdvAmount = base * 0.20;
     const totalAmount = base + kdvAmount;
+    const quantity = randomIntBetween(300, 400);
 
     addVoucherRow({ account: '120', debit: totalAmount, desc: 'satış faturası toplam' });
-    addVoucherRow({ account: '600', credit: base,       desc: 'satış faturası' });
-    addVoucherRow({ account: '391', credit: kdvAmount,  desc: 'satış faturası KDV' });
+    addVoucherRow({ account: '600', credit: base, quantity: quantity, desc: 'satış faturası' });
+    addVoucherRow({ account: '391', credit: kdvAmount, desc: 'satış faturası KDV' });
 
     document.getElementById('v_desc').value = 'Satış Faturası';
   }
@@ -5237,17 +5571,45 @@ function applyTemplateByKey(key){
 
     document.getElementById('v_desc').value = 'Satılan Mal Maliyeti';
   }
-  else if (key === 'ucret'){
-    // Ücret Hakedişi
-    const tutar = randomThousandBetween(30000, 50000); // 30.000–50.000
+  else if (key === 'ucretTahakkuk'){
+    // Ücret Tahakkuku Asgari Ücret
+    const asgariUcret = 26005.50;
+    const round2 = (val) => Math.round((Number(val) + Number.EPSILON) * 100) / 100;
 
-    addVoucherRow({ account:'770', debit: tutar,  desc:'ücret hakedişi' });
-    addVoucherRow({ account:'360', credit: tutar,  desc:'ücret hakedişi' });
-    addVoucherRow({ account:'361', credit: tutar,  desc:'ücret hakedişi' });
-    addVoucherRow({ account:'335', credit: tutar, desc:'ücret hakedişi' });
+    const kisiSayisi = prompt('Asgari ücretli sayısı belirtiniz:');
+    if (!kisiSayisi || isNaN(kisiSayisi) || kisiSayisi <= 0) {
+      alert('Geçerli bir çalışan sayısı giriniz.');
+      document.getElementById('tplSelect').value = '';
+      return;
+    }
+    const kisi = parseInt(kisiSayisi, 10);
 
-    document.getElementById('v_desc').value = 'Ücret Hakedişi';
-  }
+    // Hesaplamalar (kuruşa yuvarlanmış)
+    const brutRaw = asgariUcret * 1.1775 * kisi;
+    const sgkKesintiler1Raw = asgariUcret * 0.1775 * kisi;
+    const sgkKesintiler2Raw = asgariUcret * 0.15 * kisi;
+    const netRaw = brutRaw - sgkKesintiler1Raw - sgkKesintiler2Raw;
+
+    const brutUcret = round2(brutRaw);
+    const sgkKesintiler1 = round2(sgkKesintiler1Raw);
+    const sgkKesintiler2 = round2(sgkKesintiler2Raw);
+    let netUcret = round2(netRaw);
+
+    // Toplamların dengede kalması için olası 1 kuruş farkı net ücrete yansıt
+    const diff = round2(brutUcret - (sgkKesintiler1 + sgkKesintiler2 + netUcret));
+    if (Math.abs(diff) >= 0.01) {
+      netUcret = round2(netUcret + diff);
+    }
+
+    // Fiş satırları
+    addVoucherRow({ account:'770', debit: brutUcret, desc: kisi + ' çalışan için brüt ücret + işveren payları' });
+    addVoucherRow({ account:'360', credit: 0, desc: kisi + ' çalışan için ödenecek net ücretler' });
+    addVoucherRow({ account:'361', credit: sgkKesintiler1, desc: kisi + ' çalışan için işveren SGK payı' });
+    addVoucherRow({ account:'361', credit: sgkKesintiler2, desc: kisi + ' çalışan için işçi SGK kesintisi' });
+    addVoucherRow({ account:'335', credit: netUcret, desc: kisi + ' çalışan için ödenecek net ücretler' });
+
+    document.getElementById('v_desc').value = kisi + ' çalışan için ücret tahakkuku';
+  }
 
   markDirty();
   recalcVoucherTotals();
@@ -5463,6 +5825,9 @@ function renderCoaList(){
     // Ters bakiye kontrolü
     const expectedSide = acc.side;
     const isReversed = expectedSide && expectedSide !== actualSide && balanceAmount > 0;
+
+    // Dal işareti ile görsel hiyerarşi (1 seviye için 1, torunlar için 2)
+    const branch = depth === 0 ? '' : `${'↳'.repeat(Math.min(depth, 2))} `;
     
     const row = document.createElement('div');
     row.className = 'row indent-' + Math.min(depth, 3);
@@ -5483,13 +5848,20 @@ function renderCoaList(){
     }
     
     row.innerHTML = `
-      <div class="coa-col-code">${escapeHTML(acc.code)}</div>
+      <div class="coa-col-code">${escapeHTML(branch + acc.code)}</div>
       <div class="coa-col-name">${escapeHTML(acc.name)}</div>
       <div class="coa-col-balance">${balanceAmount > 0 ? fmt(balanceAmount) : '0,00'}</div>
       <div class="coa-col-side">${balanceAmount > 0 ? actualSide : '-'}</div>
       <div class="coa-col-reverse">${isReversed ? 'ters bakiye' : ''}</div>
     `;
     row.dataset.code = acc.code;
+
+    row.addEventListener('click', () => {
+      document.querySelectorAll('#coaList .row.coa-selected').forEach(el => {
+        if (el !== row) el.classList.remove('coa-selected');
+      });
+      row.classList.add('coa-selected');
+    });
 
     row.addEventListener('dblclick', () => {
       const parentSel = document.getElementById('coaParent');
@@ -5757,6 +6129,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
   // ---------- Başlat ----------
   window.addEventListener('load', ()=>{
+    initUserLoginUI();
     loadDB();
 
     // Fiş formu
