@@ -1185,6 +1185,7 @@
 
   // --- Son kullanılan/odaklanan hesap ve odak satırı ---
   let LAST_USED_ACCOUNT = '';
+  let CURRENT_COA_SELECTED_CODE = '';
   let CURRENT_VOUCHER_ROW = null; // imlecin (focus) olduğu tr
   let CURRENT_VOUCHER_ORIGINAL_KEY = null; // yüklü fişin tarih|no anahtarı
   let CURRENT_MIZAN_SELECTED_CODE = null; // mizan tablosu seçimi
@@ -5728,9 +5729,69 @@ if (document.getElementById('rpStockPair')) populateStockPairSelect();
 
 }
 
+function highlightCoaListSelection(code, { ensureVisible=false } = {}){
+  const list = document.getElementById('coaList');
+  if (!list) return;
+
+  const targetCode = (code || '').trim();
+  list.querySelectorAll('.row').forEach(row=>{
+    row.classList.toggle('coa-selected', !!targetCode && row.dataset.code === targetCode);
+  });
+
+  if (!targetCode) return;
+  const row = list.querySelector(`.row[data-code="${targetCode}"]`);
+  if (row && ensureVisible){
+    row.scrollIntoView({ block:'center' });
+  }
+}
+
+function ensureSelectedAccountVisibleInList(code){
+  if (!code) return;
+  const list = document.getElementById('coaList');
+  const search = document.getElementById('coaSearch');
+  if (!list || !search || !search.value) return;
+  if (list.querySelector(`.row[data-code="${code}"]`)) return;
+  search.value = '';
+  renderCoaList();
+}
+
+function syncCoaSelection(code, { ensureVisible=false } = {}){
+  const selectedCode = (code || '').trim();
+  CURRENT_COA_SELECTED_CODE = selectedCode;
+
+  const parentSel = document.getElementById('coaParent');
+  if (parentSel){
+    const hasOption = Array.from(parentSel.options).some(opt => opt.value === selectedCode);
+    parentSel.value = hasOption ? selectedCode : parentSel.value;
+  }
+
+  const updateSelect = document.getElementById('coaUpdateSelect');
+  if (updateSelect){
+    const hasOption = Array.from(updateSelect.options).some(opt => opt.value === selectedCode);
+    if (selectedCode && hasOption) updateSelect.value = selectedCode;
+    if (!selectedCode) updateSelect.value = '';
+  }
+
+  const nameInput = document.getElementById('coaUpdateName');
+  if (nameInput){
+    if (selectedCode){
+      const account = getAllAccountsFlat().find(acc => acc.code === selectedCode);
+      nameInput.value = account ? account.name : '';
+    } else {
+      nameInput.value = '';
+    }
+  }
+
+  if (selectedCode) LAST_USED_ACCOUNT = selectedCode;
+
+  if (ensureVisible && selectedCode) ensureSelectedAccountVisibleInList(selectedCode);
+  highlightCoaListSelection(selectedCode, { ensureVisible });
+}
+
 function showCoaModal(){ 
   // Üst hesap select'ini doldur
   const parentSel = document.getElementById('coaParent');
+  const prevParent = parentSel ? parentSel.value : '';
   parentSel.innerHTML = '';
   buildAccountOptions().forEach(o=>{
     const op = document.createElement('option');
@@ -5739,10 +5800,13 @@ function showCoaModal(){
     op.textContent = o.label;
     parentSel.appendChild(op);
   });
-  if (LAST_USED_ACCOUNT) parentSel.value = LAST_USED_ACCOUNT;
 
   // Listeyi çiz
   renderCoaList();
+  const updateSel = document.getElementById('coaUpdateSelect');
+  const initialSelection = CURRENT_COA_SELECTED_CODE || (updateSel ? updateSel.value : '') || prevParent || LAST_USED_ACCOUNT;
+  if (initialSelection) syncCoaSelection(initialSelection, { ensureVisible:false });
+  if (!initialSelection) highlightCoaListSelection('', { ensureVisible:false });
 
   document.getElementById('coaModal').classList.add('show');
   document.getElementById('coaModal').setAttribute('aria-hidden','false');
@@ -5861,25 +5925,17 @@ function renderCoaList(){
         if (el !== row) el.classList.remove('coa-selected');
       });
       row.classList.add('coa-selected');
+      CURRENT_COA_SELECTED_CODE = acc.code;
     });
 
     row.addEventListener('dblclick', () => {
-      const parentSel = document.getElementById('coaParent');
-      if (parentSel && Array.from(parentSel.options).some(opt => opt.value === acc.code)) {
-        parentSel.value = acc.code;
-        LAST_USED_ACCOUNT = acc.code;
-      }
-
-      const updateSelect = document.getElementById('coaUpdateSelect');
-      if (updateSelect && Array.from(updateSelect.options).some(opt => opt.value === acc.code)) {
-        updateSelect.value = acc.code;
-        updateSelect.dispatchEvent(new Event('change'));
-      }
+      syncCoaSelection(acc.code, { ensureVisible:true });
     });
     
     const hay = slugTR(acc.code + ' ' + acc.name);
     if (!q || hay.includes(q)) box.appendChild(row);
   });
+  highlightCoaListSelection(CURRENT_COA_SELECTED_CODE, { ensureVisible:false });
 }
 
 // Alt hesap ekleme
@@ -5919,6 +5975,7 @@ function onCoaAdd(){
 function populateCoaUpdateSelect(){
   const updateSelect = document.getElementById('coaUpdateSelect');
   if (!updateSelect) return;
+  const previousValue = updateSelect.value;
   
   updateSelect.innerHTML = '';
   
@@ -5938,6 +5995,11 @@ function populateCoaUpdateSelect(){
     option.textContent = `${indent}${acc.code} - ${acc.name}`;
     updateSelect.appendChild(option);
   });
+
+  const preferred = CURRENT_COA_SELECTED_CODE || previousValue;
+  const hasPreferred = preferred && Array.from(updateSelect.options).some(opt => opt.value === preferred);
+  updateSelect.value = hasPreferred ? preferred : '';
+  syncCoaSelection(updateSelect.value, { ensureVisible:false });
 }
 
 // Hesap adı güncelleme
@@ -5990,16 +6052,12 @@ function onCoaUpdate(){
 // Hesap seçildiğinde mevcut adı göster
 function onCoaUpdateSelectChange(){
   const code = document.getElementById('coaUpdateSelect').value;
-  const nameInput = document.getElementById('coaUpdateName');
-  
-  if (code) {
-    const account = getAllAccountsFlat().find(acc => acc.code === code);
-    if (account) {
-      nameInput.value = account.name;
-    }
-  } else {
-    nameInput.value = '';
-  }
+  syncCoaSelection(code, { ensureVisible:true });
+}
+
+function onCoaParentChange(){
+  const code = document.getElementById('coaParent').value;
+  syncCoaSelection(code, { ensureVisible:true });
 }
 
 // Olay bağlama ve ilk yükleme
@@ -6025,6 +6083,8 @@ function initSubaccountsUI(){
   
   const updateSelect = document.getElementById('coaUpdateSelect');
   if (updateSelect) updateSelect.addEventListener('change', onCoaUpdateSelectChange);
+  const parentSelect = document.getElementById('coaParent');
+  if (parentSelect) parentSelect.addEventListener('change', onCoaParentChange);
 
   // Sayfa açılır açılmaz fiş satırındaki select'lerin ve rapor select'inin
   // alt hesapları da görmesi için bir kez yenile
