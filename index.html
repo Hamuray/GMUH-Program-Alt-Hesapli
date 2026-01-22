@@ -278,6 +278,7 @@
     .collapsed-content { display: none; }
     .collapsed-content.is-expanded { display: block; }
     .toggle-btn { background: none; border: none; font-weight: bold; font-size: 1.2em; cursor: pointer; padding: 0; margin-right: 8px; }
+    .collapsible-legend { cursor: pointer; user-select: none; }
 
     /* Açıklama hücresindeki input tam genişlik olsun (5. sütun) */
     #voucherTable td:nth-child(5) input[type="text"] {
@@ -2367,6 +2368,7 @@ function navigateVoucher(directionStr){
 
     const key = typeof data.key === 'string' ? data.key : '';
     const sourceWin = event.source;
+    try { window.focus(); } catch {}
 
     if (!key){
       if (sourceWin && typeof sourceWin.postMessage === 'function'){
@@ -2404,6 +2406,15 @@ function navigateVoucher(directionStr){
     if (typeof ensureSelectMatchesCurrent === 'function'){
       ensureSelectMatchesCurrent();
     }
+
+    try{
+      if (typeof window.scrollTo === 'function'){
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }
+    }catch{}
 
     if (sourceWin && typeof sourceWin.postMessage === 'function'){
       sourceWin.postMessage({ type: 'ledger-open-voucher-result', status: 'ok', key: key }, '*');
@@ -2707,6 +2718,11 @@ function updateAlertsPanel({ directBalances = {}, dateRange = {} } = {}){
   const missingQtyVouchers = [];
   const fromDate = dateRange.from || null;
   const toDate = dateRange.to || null;
+  const suffixes = ['01', '02', '03'];
+  const qtyTotals = suffixes.reduce((acc, s) => {
+    acc[s] = { invDebit: 0, salesCredit: 0 };
+    return acc;
+  }, {});
 
   Object.entries(directBalances).forEach(([code, bal]) => {
     if (!code) return;
@@ -2733,24 +2749,26 @@ function updateAlertsPanel({ directBalances = {}, dateRange = {} } = {}){
     }
   });
 
-  const suffixes = ['01', '02', '03'];
-  suffixes.forEach(suffix => {
-    const inventoryCode = `153.${suffix}`;
-    const salesCode = `600.${suffix}`;
-    const inventoryQty = toNum(directBalances[inventoryCode]?.quantity);
-    const salesQty = toNum(directBalances[salesCode]?.quantity);
-    if (Math.abs(inventoryQty) <= EPS && Math.abs(salesQty) <= EPS) return;
-    if (salesQty - inventoryQty > EPS) {
-      messages.push(`Satış miktarı alış miktarından fazla ${inventoryCode} / ${salesCode} hesaplardaki miktarları kontrol ediniz.`);
-    }
-  });
-
   (DB.vouchers || []).forEach(voucher => {
     if (!voucher || !Array.isArray(voucher.lines)) return;
     const isoDate = ymd(voucher.date);
     const dt = parseDateInput(isoDate);
     if (fromDate && dt && dt < fromDate) return;
     if (toDate && dt && dt > toDate) return;
+
+    voucher.lines.forEach(line => {
+      if (!line) return;
+      const code = String(line.account || '');
+      const qty = toNum(line.quantity);
+      const hasQty = qty > EPS;
+      const isDebit = toNum(line.debit) > EPS;
+      const isCredit = toNum(line.credit) > EPS;
+
+      suffixes.forEach(suffix => {
+        if (code === `153.${suffix}` && hasQty && isDebit) qtyTotals[suffix].invDebit += qty;
+        if (code === `600.${suffix}` && hasQty && isCredit) qtyTotals[suffix].salesCredit += qty;
+      });
+    });
 
     const hasMissing = voucher.lines.some(line => {
       if (!line) return false;
@@ -2770,6 +2788,12 @@ function updateAlertsPanel({ directBalances = {}, dateRange = {} } = {}){
   });
 
   missingQtyVouchers.forEach(msg => messages.push(msg));
+  suffixes.forEach(suffix => {
+    const { invDebit, salesCredit } = qtyTotals[suffix];
+    if (salesCredit - invDebit > EPS) {
+      messages.push(`Satış miktarı alış miktarından fazla 153.${suffix} / 600.${suffix} hesaplardaki miktarları kontrol ediniz.`);
+    }
+  });
 
   panel.innerHTML = '';
 
@@ -2949,6 +2973,8 @@ function printMizan(){
   tr.ledger-row{cursor:pointer;}
   tr.ledger-row:hover{background:#e0f2fe;}
   .ledger-tip{margin-top:8px; font-size:12px; color:var(--muted);}
+  tr.stock-row{cursor:pointer;}
+  tr.stock-row:hover{background:#e0f2fe;}
 
   /* "Açıklama" sütunu: başlık ve hücreler class="desc-col" */
   th.desc-col, td.desc-col{
@@ -3323,6 +3349,7 @@ function makeJournalDump3HTML(){
     // --------- 3) Render: "Yevmiye Dökümü 2" formatına benzer ----------
     let voucherSumDebit  = 0;
     let voucherSumCredit = 0;
+    const blocks = [];
 
     html += `
         <div style="margin-top:18px">
@@ -3350,18 +3377,21 @@ function makeJournalDump3HTML(){
     parents.forEach(p=>{
       const g = groups.get(p);
       const hasChildren = g.children.length > 0;
+      let blockHTML = '';
+      let blockDebit = 0;
+      let blockCredit = 0;
 
       if (hasChildren){
         // 3.a) ANA BAŞLIK: toplam = SADECE alt hesapların toplamı
         const sumD = g.children.reduce((s,x)=> s + x.debit , 0);
         const sumC = g.children.reduce((s,x)=> s + x.credit, 0);
-        voucherSumDebit  += sumD;
-        voucherSumCredit += sumC;
+        blockDebit  += sumD;
+        blockCredit += sumC;
 
         const parentNameCellRaw = `${p}.${(g.parentName || '').toUpperCase()}`;
         const parentNameCell = indentIfCredit(parentNameCellRaw, sumD, sumC);
 
-        html += `
+        blockHTML += `
           <tr>
             <td><strong>${parentNameCell}</strong></td>
             <td></td>
@@ -3375,7 +3405,7 @@ function makeJournalDump3HTML(){
         g.children.forEach(ch=>{
           const nameRaw = `${ch.code} ${ch.name || ''}`;
           const nameCell = indentIfCredit(nameRaw, ch.debit, ch.credit);
-          html += `
+          blockHTML += `
             <tr>
               <td style="padding-left:18px">${nameCell}</td>
               <td>${ch.desc || ''}</td>
@@ -3390,13 +3420,13 @@ function makeJournalDump3HTML(){
         // 3.c) ALT HESAP YOKSA: sadece TEK SATIR ana hesap göster
         const d = g.parentAgg.debit;
         const c = g.parentAgg.credit;
-        voucherSumDebit  += d;
-        voucherSumCredit += c;
+        blockDebit  += d;
+        blockCredit += c;
 
         const parentNameRaw = `${p} ${g.parentName || ''}`;
         const parentName = indentIfCredit(parentNameRaw, d, c);
 
-        html += `
+        blockHTML += `
           <tr>
             <td>${parentName}</td>
             <td></td>
@@ -3406,7 +3436,17 @@ function makeJournalDump3HTML(){
           </tr>
         `;
       }
+
+      voucherSumDebit  += blockDebit;
+      voucherSumCredit += blockCredit;
+      const blockSide = (blockCredit > blockDebit) ? 'credit' : 'debit';
+      blocks.push({ side: blockSide, html: blockHTML });
     });
+
+    blocks
+      .filter(b => b.side === 'debit')
+      .concat(blocks.filter(b => b.side === 'credit'))
+      .forEach(b => { html += b.html; });
 
     // Fiş toplamı: SADECE gösterilen satırların toplamı (0'lar boş)
     html += `
@@ -3557,8 +3597,19 @@ function makeJournalDump4MainHTML(){
 
     // Satırları kod sırasına göre yaz (sadece ANA hesaplar)
     let voucherSumDebit = 0, voucherSumCredit = 0, voucherSumQty = 0;
-    const entries = Object.entries(Object.fromEntries(agg)).sort((a,b)=> a[0].localeCompare(b[0],'tr'));
+    const entries = Object.entries(Object.fromEntries(agg));
+    const debitEntries = [];
+    const creditEntries = [];
     entries.forEach(([root, sums])=>{
+      const target = (sums.credit > sums.debit) ? creditEntries : debitEntries;
+      target.push([root, sums]);
+    });
+    const cmpRoot = (a,b)=> a[0].localeCompare(b[0],'tr');
+    debitEntries.sort(cmpRoot);
+    creditEntries.sort(cmpRoot);
+    const orderedEntries = debitEntries.concat(creditEntries);
+
+    orderedEntries.forEach(([root, sums])=>{
       const name = getAccName(root) || '';
 
       // Alacak tarafındaysa başa 5 boşluk bırak (yalnızca net alacak satırlarında)
@@ -3688,15 +3739,23 @@ function makeJournalDump4MainHTML(){
       <script>
         (function(){
           const rows = document.querySelectorAll('tr[data-voucher-key]');
+          function sendToMain(key){
+            if (!key || !window.opener || window.opener.closed) return;
+            try{
+              window.opener.postMessage({ type: 'ledger-open-voucher', key: key }, '*');
+              window.opener.focus();
+              setTimeout(()=>{ try{ window.close(); }catch{} }, 30);
+            }catch(err){
+              console.error('Fiş isteği iletilemedi:', err);
+            }
+          }
           rows.forEach(function(row){
-            row.addEventListener('dblclick', function(){
-              const key = row.getAttribute('data-voucher-key');
-              if (!key || !window.opener || window.opener.closed) return;
-              try{
-                window.opener.postMessage({ type: 'ledger-open-voucher', key: key }, '*');
-              }catch(err){
-                console.error('Fiş isteği iletilemedi:', err);
-              }
+            row.style.cursor = 'pointer';
+            ['click','dblclick'].forEach(evt=>{
+              row.addEventListener(evt, function(){
+                const key = row.getAttribute('data-voucher-key');
+                sendToMain(key);
+              });
             });
           });
 
@@ -3750,10 +3809,29 @@ function makeTrialReportHTML(){
     splitAncestors(code).forEach(ancestor => displayCodes.add(ancestor));
   });
 
+  const allCodes = Array.from(displayCodes);
+  const aggCache = {};
+  const getAggregated = (code) => {
+    if (aggCache[code]) return aggCache[code];
+    const direct = balances[code] || { debit: 0, credit: 0, quantity: 0 };
+    const agg = { debit: direct.debit, credit: direct.credit, quantity: direct.quantity };
+    allCodes.forEach(child => {
+      if (child !== code && child.startsWith(code + '.')) {
+        const cAgg = getAggregated(child);
+        agg.debit += cAgg.debit;
+        agg.credit += cAgg.credit;
+        agg.quantity += cAgg.quantity;
+      }
+    });
+    aggCache[code] = agg;
+    return agg;
+  };
+
   // 3. Görüntüleme için satırları oluştur
   const rows = [];
   displayCodes.forEach(code => {
-    const balance = balances[code] || { debit: 0, credit: 0, quantity: 0 };
+    const isMain = code.split('.').length === 1;
+    const balance = isMain ? getAggregated(code) : (balances[code] || { debit: 0, credit: 0, quantity: 0 });
     
     const accMeta = getAccMeta(code);
     const diff = balance.debit - balance.credit;
@@ -3813,19 +3891,22 @@ function makeTrialReportHTML(){
     </tr>`;
   }).join('');
 
-  // 6. Genel toplamları SADECE hareket olan hesaplardan hesapla
+  // 6. Genel toplamları SADECE ana hesapların toplamlarından hesapla
   let totalDebit = 0, totalCredit = 0, totalBorcBakiye = 0, totalAlacakBakiye = 0, totalQuantity = 0;
-  Object.values(balances).forEach(b => {
-      totalDebit += b.debit;
-      totalCredit += b.credit;
-      const diff = b.debit - b.credit;
+  allCodes
+    .filter(code => code.split('.').length === 1)
+    .forEach(code => {
+      const agg = getAggregated(code);
+      totalDebit += agg.debit;
+      totalCredit += agg.credit;
+      const diff = agg.debit - agg.credit;
       if (diff >= 0) {
-          totalBorcBakiye += diff;
+        totalBorcBakiye += diff;
       } else {
-          totalAlacakBakiye -= diff;
+        totalAlacakBakiye -= diff;
       }
-      totalQuantity += b.quantity;
-  });
+      totalQuantity += agg.quantity;
+    });
 
   // 7. Rapor tablosunu oluştur
   return `
@@ -4286,10 +4367,11 @@ function makeStockReportHTML(opts = {}){
 
   // --- 2) Alış/Satış tabloları (mevcut görünüm) ---
   const makeRows = (arr)=> (arr.length ? arr.map(it=>{
+    const key = (it.isoDate && String(it.no || '').trim()) ? `${it.isoDate}|${String(it.no).trim()}` : '';
     const q = Math.max(0, toNum(it.qty));
     const a = toNum(it.amount);
     const price = (q>0) ? a/q : 0;
-    return `<tr>
+    return `<tr data-voucher-key="${escapeHTML(key)}" class="stock-row${key ? '' : ' no-key'}">
       <td>${escapeHTML(String(it.no))}</td>
       <td>${escapeHTML(dmyFromISO(it.isoDate))}</td>
       <td class="right">${fmtNoZero(q)}</td>
@@ -4585,6 +4667,29 @@ return `
 
   <div style="margin-top:14px">${smmBlock}</div>
   <div style="margin-top:10px">${grossBlock}</div>
+  <script>
+    (function(){
+      const rows = document.querySelectorAll('tr[data-voucher-key]');
+      function sendToMain(key){
+        if (!key || !window.opener || window.opener.closed) return;
+        try{
+          window.opener.postMessage({ type: 'ledger-open-voucher', key: key }, '*');
+          window.opener.focus();
+          setTimeout(()=>{ try{ window.close(); }catch{} }, 30);
+        }catch(err){
+          console.error('Fiş isteği iletilemedi:', err);
+        }
+      }
+      rows.forEach(row=>{
+        const key = row.getAttribute('data-voucher-key');
+        if (!key) return;
+        row.style.cursor = 'pointer';
+        ['click','dblclick'].forEach(evt=>{
+          row.addEventListener(evt, ()=> sendToMain(key));
+        });
+      });
+    })();
+  <\/script>
 `;
 }
 
@@ -5469,6 +5574,237 @@ function importAccountsTSV(file){
   }
   
 // ---------- ŞABLONLAR (Dropdown) ----------
+function normalizeSmmMethod(raw){
+  const v = (raw || '').toString().trim().toUpperCase();
+  if (v === '1' || v.includes('FIFO')) return 'FIFO';
+  if (v === '2' || v.includes('LIFO')) return 'LIFO';
+  if (v === '3' || v.includes('AOM') || v.includes('AĞIRLIKLI') || v.includes('AGIRLIKLI')) return 'AOM';
+  return '';
+}
+
+function collectSmmStockAccounts(){
+  const codes = new Set();
+  codes.add('153');
+
+  // SUBACCOUNTS tan 153 alt hesapları
+  if (Array.isArray(SUBACCOUNTS)){
+    SUBACCOUNTS.forEach(acc=>{
+      const code = String(acc.code || '');
+      if (code.startsWith('153.')) codes.add(code);
+    });
+  }
+
+  // Kayıtlı fişlerden görünen 153 alt hesapları
+  (DB.vouchers || []).forEach(v=>{
+    (v.lines || []).forEach(ln=>{
+      const c = String(ln.account || '');
+      if (c.startsWith('153.')) codes.add(c);
+    });
+  });
+
+  const sortCode = (a,b)=>{
+    const na = Number(String(a).replace('.',''));
+    const nb = Number(String(b).replace('.',''));
+    if (isFinite(na) && isFinite(nb)) return na - nb;
+    return String(a).localeCompare(String(b),'tr');
+  };
+  return Array.from(codes).sort(sortCode);
+}
+
+function showSmmSelectionDialog({ stocks = [], defaultMethod = 'FIFO' } = {}){
+  return new Promise(resolve=>{
+    const existing = document.getElementById('smmSelectModal');
+    if (existing) existing.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'smmSelectModal';
+    backdrop.className = 'modal-backdrop show';
+    backdrop.setAttribute('aria-hidden','false');
+
+    const card = document.createElement('div');
+    card.className = 'modal-card';
+    card.style.maxWidth = '460px';
+    card.style.gap = '12px';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Stok ve değerleme yöntemi seçiniz';
+    title.style.margin = '0 0 8px 0';
+
+    const stockWrap = document.createElement('div');
+    stockWrap.style.display = 'grid';
+    stockWrap.style.gap = '6px';
+    stockWrap.innerHTML = '<div style="font-weight:700">Stok (153)</div>';
+    const stockGroup = document.createElement('div');
+    stockGroup.style.display = 'grid';
+    stockGroup.style.gap = '6px';
+    const stockName = 'smmStock';
+    (stocks.length ? stocks : ['153']).forEach((code, idx)=>{
+      const id = `smm-stock-${idx}`;
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '8px';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = stockName;
+      input.value = code;
+      input.id = id;
+      if (idx === 0) input.checked = true;
+      const span = document.createElement('span');
+      span.textContent = code;
+      label.append(input, span);
+      stockGroup.appendChild(label);
+    });
+    stockWrap.appendChild(stockGroup);
+
+    const methodWrap = document.createElement('div');
+    methodWrap.style.display = 'grid';
+    methodWrap.style.gap = '6px';
+    methodWrap.innerHTML = '<div style="font-weight:700">Değerleme yöntemi</div>';
+    const methods = [
+      { val:'FIFO', label:'FIFO' },
+      { val:'LIFO', label:'LIFO' },
+      { val:'AOM',  label:'Ağırlıklı Ortalama Maliyet (AOM)' }
+    ];
+    const methodGroup = document.createElement('div');
+    methodGroup.style.display = 'grid';
+    methodGroup.style.gap = '6px';
+    const methodName = 'smmMethod';
+    methods.forEach((m, idx)=>{
+      const id = `smm-method-${idx}`;
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '8px';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = methodName;
+      input.value = m.val;
+      input.id = id;
+      if (m.val === defaultMethod) input.checked = true;
+      const span = document.createElement('span');
+      span.textContent = m.label;
+      label.append(input, span);
+      methodGroup.appendChild(label);
+    });
+    methodWrap.appendChild(methodGroup);
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.justifyContent = 'flex-end';
+    actions.style.gap = '8px';
+    actions.style.marginTop = '6px';
+
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'İptal';
+    const btnOk = document.createElement('button');
+    btnOk.textContent = 'Uygula';
+    btnOk.className = 'primary';
+
+    actions.append(btnCancel, btnOk);
+
+    const close = (result=null)=>{
+      backdrop.remove();
+      resolve(result);
+    };
+
+    btnCancel.addEventListener('click', ()=> close(null));
+    btnOk.addEventListener('click', ()=>{
+      const stock = card.querySelector(`input[name="${stockName}"]:checked`)?.value;
+      const method = card.querySelector(`input[name="${methodName}"]:checked`)?.value;
+      if (!stock || !method){
+        alert('Lütfen stok ve yöntem seçiniz.');
+        return;
+      }
+      close({ stockCode: stock, method });
+    });
+
+    backdrop.addEventListener('click', (e)=>{
+      if (e.target === backdrop) close(null);
+    });
+
+    card.append(title, stockWrap, methodWrap, actions);
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+
+    setTimeout(()=>{ btnOk.focus(); }, 0);
+  });
+}
+
+function calculateSMMFromAllVouchers({ purchaseCode = '153', salesCode = '600', method = 'FIFO' } = {}){
+  const purchases = [];
+  const sales = [];
+
+  (DB.vouchers || []).forEach(v=>{
+    const isoDate = ymd(v.date);
+    (v.lines || []).forEach((ln, idx)=>{
+      const acc = String(ln.account || '');
+      const qty = Math.max(0, toNum(ln.quantity));
+      if (acc === purchaseCode){
+        const amt = toNum(ln.debit);
+        if (amt > 0 && qty > 0){
+          purchases.push({ qty, amount: amt, isoDate, no: v.no, _idx: idx });
+        }
+      }
+      if (acc === salesCode){
+        const amt = toNum(ln.credit);
+        if (amt > 0 && qty > 0){
+          sales.push({ qty, amount: amt });
+        }
+      }
+    });
+  });
+
+  const sum = arr => arr.reduce((s,it)=>({ qty: s.qty + it.qty, amt: s.amt + it.amount }), { qty:0, amt:0 });
+  const pTot = sum(purchases);
+  const sTot = sum(sales);
+  const soldQty = Math.max(0, sTot.qty);
+
+  if (pTot.qty <= 0 || soldQty <= 0) return { amount: 0, soldQty };
+
+  const lots = purchases
+    .map((it, idx)=>({ ...it, _idx: idx, unit: it.amount / it.qty, noNum: Number(it.no) || 0, iso: it.isoDate || '' }))
+    .sort((a,b)=> a.iso.localeCompare(b.iso) || a.noNum - b.noNum || a._idx - b._idx)
+    .map(it=>({ qty: it.qty, unit: it.unit, noNum: it.noNum, iso: it.iso, _idx: it._idx }));
+
+  const cloneLots = arr => arr.map(l=>({ ...l }));
+
+  function endingByFIFO(){
+    const ls = cloneLots(lots);
+    let need = soldQty;
+    for(let i=0; i<ls.length && need>0; i++){
+      const take = Math.min(ls[i].qty, need);
+      ls[i].qty -= take;
+      need -= take;
+    }
+    return ls.filter(l=>l.qty>0);
+  }
+
+  function endingByLIFO(){
+    const ls = cloneLots(lots);
+    let need = soldQty;
+    for(let i=ls.length-1; i>=0 && need>0; i--){
+      const take = Math.min(ls[i].qty, need);
+      ls[i].qty -= take;
+      need -= take;
+    }
+    return ls.filter(l=>l.qty>0);
+  }
+
+  const sumLayers = layers => layers.reduce((s,l)=>({ qty: s.qty + l.qty, amt: s.amt + (l.qty * l.unit) }), { qty:0, amt:0 });
+  const fifoEnd = sumLayers(endingByFIFO());
+  const lifoEnd = sumLayers(endingByLIFO());
+  const avgPrice = pTot.qty > 0 ? (pTot.amt / pTot.qty) : 0;
+  const aomQty = Math.max(0, pTot.qty - soldQty);
+  const aomEndAmt = aomQty * avgPrice;
+
+  const methodKey = method === 'LIFO' ? 'LIFO' : (method === 'AOM' ? 'AOM' : 'FIFO');
+  const endingAmt = methodKey === 'FIFO' ? fifoEnd.amt : (methodKey === 'LIFO' ? lifoEnd.amt : aomEndAmt);
+  const smmAmount = Math.max(0, pTot.amt - endingAmt);
+
+  return { amount: smmAmount, soldQty };
+}
+
 function applyTemplateByKey(key){
   // Pasif fişte çalışmasın
   if (READONLY_MODE){
@@ -5564,13 +5900,44 @@ function applyTemplateByKey(key){
     document.getElementById('v_desc').value = 'Bankadan Kasaya';
   }
   else if (key === 'smm'){
-    // Satılan Mal Maliyeti
-    const tutar = randomThousandBetween(50000, 100000); // 50.000–100.000
+    const stocks = collectSmmStockAccounts();
+    const finish = ()=>{
+      markDirty();
+      recalcVoucherTotals();
+      const first = tbody.querySelector('tr:first-child select, tr:first-child input');
+      if(first){ first.focus(); }
+      const sel = document.getElementById('tplSelect');
+      if (sel) sel.value = '';
+    };
 
-    addVoucherRow({ account:'621', debit: tutar,  desc:'satılan mal maliyeti' });
-    addVoucherRow({ account:'153', credit: tutar, desc:'satılan mal maliyeti' });
+    showSmmSelectionDialog({ stocks, defaultMethod:'FIFO' }).then(selection=>{
+      if (!selection){
+        const sel = document.getElementById('tplSelect');
+        if (sel) sel.value = '';
+        return;
+      }
+      const { stockCode, method } = selection;
+      const methodKey = normalizeSmmMethod(method) || 'FIFO';
+      const suffix = stockCode.includes('.') ? stockCode.split('.')[1] : '';
+      const salesCode = suffix ? `600.${suffix}` : '600';
+      const debitAcc = suffix ? `621.${suffix}` : '621';
 
-    document.getElementById('v_desc').value = 'Satılan Mal Maliyeti';
+      const { amount, soldQty } = calculateSMMFromAllVouchers({ purchaseCode: stockCode, salesCode, method: methodKey });
+      if (!(amount > 0) || !(soldQty > 0)){
+        alert('Satılan mal maliyeti hesaplanamadı. 153 borç ve 600 alacak kayıtlarındaki miktar/tutar bilgilerini kontrol edin.');
+        const sel = document.getElementById('tplSelect');
+        if (sel) sel.value = '';
+        return;
+      }
+
+      const desc = `Satılan Mal Maliyeti (${stockCode} - ${methodKey})`;
+      addVoucherRow({ account: debitAcc, debit: amount,  desc });
+      addVoucherRow({ account: stockCode, credit: amount, quantity: soldQty, desc });
+
+      document.getElementById('v_desc').value = desc;
+      finish();
+    });
+    return;
   }
   else if (key === 'ucretTahakkuk'){
     // Ücret Tahakkuku Asgari Ücret
@@ -6175,16 +6542,31 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
   // ---------- Açılır-kapanır işlevi ----------
   function setupCollapsible(btnId, contentId) {
-      const btn = document.getElementById(btnId);
-      const content = document.getElementById(contentId);
+      const btn = document.getElementById(btnId);
+      const content = document.getElementById(contentId);
+      const legend = btn ? btn.closest('legend') : null;
 
-      if (!btn || !content) return;
+      if (!btn || !content) return;
 
-      btn.addEventListener('click', () => {
-          const isExpanded = content.classList.toggle('is-expanded');
-          btn.textContent = isExpanded ? '[-]' : '[+]';
-          btn.setAttribute('aria-expanded', isExpanded);
-      });
+      if (legend) legend.classList.add('collapsible-legend');
+
+      const toggle = () => {
+        const isExpanded = content.classList.toggle('is-expanded');
+        btn.textContent = isExpanded ? '[-]' : '[+]';
+        btn.setAttribute('aria-expanded', isExpanded);
+      };
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggle();
+      });
+
+      if (legend) {
+        legend.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          toggle();
+        });
+      }
   }
 
   // ---------- Başlat ----------
