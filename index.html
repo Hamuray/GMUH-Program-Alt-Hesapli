@@ -5,15 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Genel Muhasebe (Tek Dosya)</title>
   <style>
-    :root{ --bg:#f7f7f9; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --brand:#111827; }
+    :root{
+      --bg:#f2f5f9;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --line:#d6dde6;
+      --brand:#1f3a5f;
+      --accent:#0ea5a4;
+      --accent-soft:#e6f6f5;
+      --danger:#b42318;
+    }
     *{box-sizing:border-box}
     body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
     .container{max-width:1100px; margin:28px auto; padding:0 16px}
     .header-bar{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px}
     .user-badge{
       min-width:260px;
-      background:#fff9c4;
-      border:1px solid #f2d98d;
+      background:#e9f0f8;
+      border:1px solid #c9d7ea;
       border-radius:12px;
       padding:10px 12px;
       text-align:right;
@@ -64,47 +74,59 @@
       padding:10px 12px;
       font-size:15px;
     }
-    .login-card input:focus{outline:2px solid #2563eb; border-color:#2563eb}
-    .login-card .login-error{color:#b91c1c; font-size:13px; min-height:18px}
+    .login-card input:focus{outline:2px solid var(--accent); border-color:var(--accent)}
+    .login-card .login-error{color:var(--danger); font-size:13px; min-height:18px}
     .login-card button.primary{
       height:46px;
       font-size:15px;
       border-radius:12px;
-      background:#111827;
+      background:var(--brand);
     }
     body.login-locked{overflow:hidden;}
     h1{margin:0 0 16px; font-size:28px}
-    fieldset{border:1px solid var(--line); background:var(--card); border-radius:14px; padding:14px; margin:14px 0}
+    fieldset{border:1px solid var(--line); background:var(--card); border-radius:14px; padding:14px; margin:14px 0; position:relative}
     legend{padding:0 6px; font-weight:700; display:flex; align-items:center; gap:8px;}
+    .help-btn{
+      position:absolute;
+      top:8px;
+      right:12px;
+      background:#eef6ff;
+      border-color:#b7d6ff;
+      color:#0b3b77;
+      font-weight:600;
+      padding:6px 10px;
+    }
+    .help-btn:hover{background:#dbeafe}
     label{display:block; font-weight:600; margin:6px 0}
     input[type="text"],input[type="date"],select,button{border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:14px; background:white}
     button{cursor:pointer}
-    button.primary{background:var(--brand); color:#fff; border-color:#000; box-shadow:0 1px 0 rgba(0,0,0,.08)}
+    button.primary{background:var(--brand); color:#fff; border-color:#0b1c33; box-shadow:0 1px 0 rgba(0,0,0,.08)}
+    button.primary:hover{background:#233f6b}
     button:disabled{opacity:.55; cursor:not-allowed}
     #voucherTotalsRow th,
     #v_save{
       transition: background-color .25s ease, color .25s ease, border-color .25s ease;
     }
     #voucherTotalsRow.status-warn th{
-      background:#fff4d6;
-      color:#5c3b00;
-      border-color:#f7c948;
+      background:#fff3d6;
+      color:#7a4b00;
+      border-color:#f0c36b;
     }
     #voucherTotalsRow.status-ok th{
-      background:#d1fae5;
-      color:#064e3b;
-      border-color:#34d399;
+      background:#e6f6f5;
+      color:#0f6b6b;
+      border-color:#7bdad7;
     }
     #v_save.status-warn{
-      background:#fcd34d;
-      border-color:#f59e0b;
-      color:#5c3b00;
+      background:#f6c453;
+      border-color:#d99a17;
+      color:#7a4b00;
       box-shadow:0 1px 0 rgba(128,86,3,.2);
     }
     #v_save.status-ok{
-      background:#34d399;
-      border-color:#059669;
-      color:#064e3b;
+      background:#2fb7b3;
+      border-color:#1b8f8b;
+      color:#064e4e;
       box-shadow:0 1px 0 rgba(6,95,70,.2);
     }
     #v_save.status-warn:disabled,
@@ -120,9 +142,10 @@
       font-size:13px;
       text-align:left;
     }
-    th{background:#e5e7eb; font-weight:700}
-    #mizanTable th,
-    #mizanTable td{
+    th{background:#e9eff6; font-weight:700}
+  #mizanTable th,
+  #mizanTable td{
+      min-width:0;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
@@ -134,12 +157,12 @@
     .muted{color:var(--muted)}
     #v_msg.error{color:red; font-weight:bold}
     .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .pill{padding:4px 8px; border:1px solid var(--line); border-radius:999px; background:#fff}
-    .danger{background:#b91c1c; color:#fff; border-color:#7f1d1d}
+    .pill{padding:4px 8px; border:1px solid var(--line); border-radius:999px; background:#f8fafc}
+    .danger{background:var(--danger); color:#fff; border-color:#7a1a12}
     .hint{font-size:12px; color:#6b7280}
     .warn{ background:#fff1f2; }
-    .warn td{ color:#991b1b; }
-    input[readonly]{ background:#f3f4f6; color:#6b7280; }
+    .warn td{ color:#9f1a1a; }
+    input[readonly]{ background:#f1f5f9; color:#64748b; }
 
     /* --- TABLO HİZALAMA DÜZELTMELERİ --- */
 
@@ -156,14 +179,14 @@
   /* Mizan tablosu sütun genişlikleri (başlıklarla uyumlu olması için) */
   #mizanTable col:nth-child(1) { width: 120px; }
   #mizanTable col:nth-child(2) { width: 250px; }
-  #mizanTable col:nth-child(3) { width: 110px; }
-  #mizanTable col:nth-child(4) { width: 110px; }
-  #mizanTable col:nth-child(5) { width: 110px; }
-  #mizanTable col:nth-child(6) { width: 110px; }
-  #mizanTable col:nth-child(7) { width: 60px; }
-  #mizanTable col:nth-child(8) { width: 100px; }
-  #mizanTable col:nth-child(9) { width: 120px; }
-  #mizanTable col:nth-child(10) { width: 100px; }
+  #mizanTable col:nth-child(3) { width: 170px; }
+  #mizanTable col:nth-child(4) { width: 170px; }
+  #mizanTable col:nth-child(5) { width: 170px; }
+  #mizanTable col:nth-child(6) { width: 170px; }
+  #mizanTable col:nth-child(7) { width: 50px; }
+  #mizanTable col:nth-child(8) { width: 70px; }
+  #mizanTable col:nth-child(9) { width: 50px; }
+  #mizanTable col:nth-child(10) { width: 50px; }
 
   #mizanTable .resize-handle{
     position:absolute;
@@ -188,8 +211,8 @@
   }
 
   #mizanTable tbody tr.mizan-row-selected{
-    background:#dbeafe !important;
-    color:#1e3a8a !important;
+    background:#c5f3d3 !important;
+    color:#0f5132 !important;
   }
   #mizanTable tbody tr.mizan-row-selected td{
     color:inherit !important;
@@ -692,6 +715,7 @@
 
     <fieldset>
       <legend>Fiş Girişi</legend>
+      <button id="helpBtn" class="help-btn" type="button" title="Yardım">Yardım</button>
       <div class="row">
         <div>
           <label for="v_tarih">Tarih</label>
@@ -814,27 +838,27 @@
           <colgroup>
             <col data-index="0" style="width:120px">
             <col data-index="1" style="width:250px">
-            <col data-index="2" style="width:110px">
-            <col data-index="3" style="width:110px">
-            <col data-index="4" style="width:110px">
-            <col data-index="5" style="width:110px">
-            <col data-index="6" style="width:60px">
-            <col data-index="7" style="width:100px">
-            <col data-index="8" style="width:120px">
-            <col data-index="9" style="width:100px">
+            <col data-index="2" style="width:170px">
+            <col data-index="3" style="width:170px">
+            <col data-index="4" style="width:170px">
+            <col data-index="5" style="width:170px">
+            <col data-index="6" style="width:50px">
+            <col data-index="7" style="width:70px">
+            <col data-index="8" style="width:50px">
+            <col data-index="9" style="width:50px">
           </colgroup>
           <thead>
             <tr>
               <th style="width:120px">Hesap Kodu</th>
               <th style="width:250px">Hesap Adı</th>
-              <th class="right" style="width:110px">Toplam Borç</th>
-              <th class="right" style="width:110px">Toplam Alacak</th>
-              <th class="right" style="width:110px">Borç Bakiye</th>
-              <th class="right" style="width:110px">Alacak Bakiye</th>
-              <th style="width:60px">Taraf</th>
-              <th class="right" style="width:100px">Miktar</th>
-              <th style="width:120px">Not</th>
-              <th class="right" style="width:100px">Fiş Sayısı</th>
+              <th class="right" style="width:170px">Toplam Borç</th>
+              <th class="right" style="width:170px">Toplam Alacak</th>
+              <th class="right" style="width:170px">Borç Bakiye</th>
+              <th class="right" style="width:170px">Alacak Bakiye</th>
+              <th style="width:50px">B/A</th>
+              <th class="right" style="width:70px">Miktar</th>
+              <th style="width:50px">Not</th>
+              <th class="right" style="width:50px">FS</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1656,6 +1680,11 @@ function normHeader(s){
   function fmtNoZero(n){
     const num = Number(n)||0;
     return num === 0 ? '' : fmt(num);
+  }
+
+  function fmtIntNoZero(n){
+    const num = Math.trunc(Number(n)||0);
+    return num === 0 ? '' : num.toLocaleString('tr-TR');
   }
 
   function toNum(v){
@@ -2615,13 +2644,15 @@ function renderMizan(){
       tr.style.backgroundColor = '#f3f4f6';
       tr.style.color = '#000';
       tr.style.fontWeight = '700';
+      tr.style.fontStyle = 'normal';
+      tr.style.fontSize = '13px';
     } else {
       tr.style.backgroundColor = '#fff';
       tr.style.color = '#2563eb';
     }
 
     // Doğrudan hareket olmayan hesaplar için farklı stil
-    if (!hasDirectMovement && mizanType === 'detay') {
+    if (!hasDirectMovement && mizanType === 'detay' && !isMainAccount) {
       tr.style.fontStyle = 'italic';
       tr.style.opacity = '0.8';
     }
@@ -2655,7 +2686,7 @@ function renderMizan(){
       <td>${r.side}</td>
       <td class="right">${fmtNoZero(r.quantity)}</td>
       <td>${escapeHTML(r.note)}</td>
-      <td class="right">${fmtNoZero(r.voucherCount)}</td>
+      <td class="right">${fmtIntNoZero(r.voucherCount)}</td>
     `;
     tb.appendChild(tr);
   });
@@ -2833,7 +2864,7 @@ function setupMizanColumnResize(){
   if (!headerRow) return;
 
   const headers = Array.from(headerRow.cells);
-  const minWidths = [110, 150, 110, 110, 110, 110, 60, 90, 70, 70];
+  const minWidths = [110, 150, 110, 110, 110, 110, 40, 60, 40, 40];
 
   headers.forEach((th, index) => {
     const col = cols[index];
@@ -5941,7 +5972,7 @@ function applyTemplateByKey(key){
   }
   else if (key === 'ucretTahakkuk'){
     // Ücret Tahakkuku Asgari Ücret
-    const asgariUcret = 26005.50;
+    const asgariUcret = 33030.00;
     const round2 = (val) => Math.round((Number(val) + Number.EPSILON) * 100) / 100;
 
     const kisiSayisi = prompt('Asgari ücretli sayısı belirtiniz:');
@@ -5953,8 +5984,8 @@ function applyTemplateByKey(key){
     const kisi = parseInt(kisiSayisi, 10);
 
     // Hesaplamalar (kuruşa yuvarlanmış)
-    const brutRaw = asgariUcret * 1.1775 * kisi;
-    const sgkKesintiler1Raw = asgariUcret * 0.1775 * kisi;
+    const brutRaw = asgariUcret * 1.1875 * kisi;
+    const sgkKesintiler1Raw = asgariUcret * 0.1875 * kisi;
     const sgkKesintiler2Raw = asgariUcret * 0.15 * kisi;
     const netRaw = brutRaw - sgkKesintiler1Raw - sgkKesintiler2Raw;
 
@@ -6574,14 +6605,20 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
     initUserLoginUI();
     loadDB();
 
-    // Fiş formu
-    document.getElementById('v_balance').addEventListener('click', balanceRemaining);
-    document.getElementById('v_save').addEventListener('click', saveVoucher);
-    document.getElementById('v_load').addEventListener('click', loadSelectedVoucher);
-    // YENİ: "Fişi Güncelle" butonu pasif fişi düzenlemeye açar
-    document.getElementById('v_edit').addEventListener('click', ()=> setVoucherEditable(true));
-    document.getElementById('v_new').addEventListener('click', newVoucher);
+    // Fiş formu
+    document.getElementById('v_balance').addEventListener('click', balanceRemaining);
+    document.getElementById('v_save').addEventListener('click', saveVoucher);
+    document.getElementById('v_load').addEventListener('click', loadSelectedVoucher);
+    // YENİ: "Fişi Güncelle" butonu pasif fişi düzenlemeye açar
+    document.getElementById('v_edit').addEventListener('click', ()=> setVoucherEditable(true));
+    document.getElementById('v_new').addEventListener('click', newVoucher);
     document.getElementById('v_delete').addEventListener('click', deleteVoucher);
+    const helpBtn = document.getElementById('helpBtn');
+    if (helpBtn) {
+      helpBtn.addEventListener('click', ()=>{
+        window.open('https://www.muhasebe.info/paket-programlar/uzman-muhasebe-program', '_blank');
+      });
+    }
 
     // Şablon seçimi
 
