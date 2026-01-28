@@ -292,6 +292,8 @@
     display:flex;
     align-items:flex-end;
     margin-left:auto;
+    gap:8px;
+    flex-wrap:wrap;
   }
 
     /* Fiş tablosu başlıklarını ortala */
@@ -425,6 +427,17 @@
     .modal-head{ padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; }
     .modal-body{ padding:12px; overflow:auto; }
     .modal-foot{ padding:10px 12px; border-top:1px solid var(--line); text-align:right; }
+    .option-choices{ display:grid; gap:8px; }
+    .option-tile{
+      display:flex; align-items:flex-start; gap:10px;
+      border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+      background:#fff; cursor:pointer; transition:border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+    }
+    .option-tile:hover{ border-color:var(--brand); }
+    .option-tile.selected{ border-color:var(--brand); box-shadow:0 6px 20px rgba(0,0,0,0.08); background:#eef2f8; }
+    .option-tile input{ margin-top:3px; }
+    .option-title{ font-weight:700; }
+    .option-hint{ color:var(--muted); font-size:12px; }
     .coa-list .row{
       display:flex; 
       align-items:center; 
@@ -627,6 +640,40 @@
     }
     .coa-toolbar button:hover{ background:#f3f4f6 }
     .coa-toolbar .spacer{ flex:1 }
+    .coa-paste{
+      display:none;
+      padding:12px;
+      border:1px solid #e5e7eb;
+      border-radius:10px;
+      background:#f9fafb;
+      margin-bottom:8px;
+    }
+    .coa-paste.show{ display:block; }
+    .coa-paste textarea{
+      width:100%;
+      min-height:140px;
+      font-family:monospace;
+      font-size:13px;
+      resize:vertical;
+      padding:10px;
+      border:1px solid #d1d5db;
+      border-radius:8px;
+      box-sizing:border-box;
+    }
+    .coa-paste-head{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:8px;
+    }
+    .coa-paste-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+      margin-top:8px;
+      flex-wrap:wrap;
+    }
     #coaMsg{ margin-top:6px; font-size:12px }
     #coaMsg[aria-live]{ outline:0 } /* ekran okuyucuya uygun alan */
 /* ===== Alert messages (coaMsg) ===== */
@@ -982,7 +1029,7 @@
       </button>
       <button id="btnExportAccountsTSV" type="button" title="Hesap planını TSV olarak indir"
               style="padding:6px 10px; font-size:12px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#111;">
-        Hesap Planı Dışa Aktar (TSV)
+        Hesap Planı Dışa Aktar
       </button>
       <label for="fileImportAccountsTSV" class="pill"
              style="padding:6px 10px; font-size:12px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; color:#111; cursor:pointer;">
@@ -991,9 +1038,28 @@
                accept=".tsv,text/tab-separated-values,text/plain"
                style="display:none" />
       </label>
+      <button id="btnCoaPasteToggle" type="button"
+              style="padding:8px 12px; font-size:13px; border-radius:10px; background:#eef6ff; border:1px solid #b7d6ff; color:#0b3b77; font-weight:600;">
+        Hesap Planı Yapıştır
+      </button>
 
       <!-- Bilgi / hata mesajları için canlı alan -->
       <div id="coaMsg" aria-live="polite" style="margin-top:6px; font-size:12px;"></div>
+    </div>
+    <div id="coaPastePanel" class="coa-paste">
+      <div class="coa-paste-head">
+        <div style="flex:1">
+          <strong>Hesap Planı Yapıştır</strong>
+          <div class="hint" style="margin-top:2px">Kod ve ad tab veya boşlukla ayrılabilir. Örn: 100.01<TAB>TL Kasası</div>
+        </div>
+        <button id="coaPasteClose" type="button">Kapat</button>
+      </div>
+      <textarea id="coaPasteInput" placeholder="100.01&#9;TL Kasası&#10;100.02&#9;Usd Kasası&#10;320.01.001&#9;Mersin Satıcıları"></textarea>
+      <div class="coa-paste-actions">
+        <div class="hint" style="margin-right:auto">Not: Mevcut alt hesap varsa aktarım yapılmaz.</div>
+        <button id="coaPasteClear" type="button">Temizle</button>
+        <button id="coaPasteApply" class="primary" type="button">Ekle</button>
+      </div>
     </div>
     <!-- === /Hesap Planı Araç Çubuğu === -->
 
@@ -1028,6 +1094,7 @@
         </div>
         <div class="coa-update-action">
           <button id="coaUpdate" class="primary">Hesabı Güncelle</button>
+          <button id="coaDelete" class="danger">Hesabı Sil</button>
         </div>
       </div>
 
@@ -5344,16 +5411,132 @@ function makeVoucherMainHTML(voucher){
   r.readAsText(file, 'utf-8');
 }
 
-  function exportAccountsTSV(){
+  function showAccountExportDialog(){
+    return new Promise(resolve=>{
+      const existing = document.getElementById('accountExportModal');
+      if (existing) existing.remove();
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'accountExportModal';
+      backdrop.className = 'modal-backdrop show';
+      backdrop.setAttribute('aria-hidden','false');
+
+      const card = document.createElement('div');
+      card.className = 'modal-card';
+      card.style.maxWidth = '520px';
+      card.style.padding = '16px';
+      card.style.gap = '10px';
+
+      const title = document.createElement('h3');
+      title.textContent = 'Hesap Planı Dışa Aktar';
+      title.style.margin = '0';
+
+      const info = document.createElement('div');
+      info.textContent = 'Dışa aktarılacak kapsamı seçiniz.';
+      info.className = 'muted';
+
+      const choices = document.createElement('div');
+      choices.className = 'option-choices';
+
+      const options = [
+        { value:'all',  title:'Tüm hesap planı',     hint:'Ana hesaplar ve alt hesaplar birlikte' },
+        { value:'subs', title:'Sadece alt hesaplar', hint:'Ana hesaplar olmadan alt hesap satırları' }
+      ];
+
+      let selected = 'all';
+      const tiles = [];
+      const setSelected = (val)=>{
+        selected = val;
+        tiles.forEach(t=>{
+          const active = t.value === val;
+          t.tile.classList.toggle('selected', active);
+          t.input.checked = active;
+        });
+      };
+
+      options.forEach(opt=>{
+        const tile = document.createElement('label');
+        tile.className = 'option-tile';
+        tile.setAttribute('tabindex','0');
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'accountExportScope';
+        radio.value = opt.value;
+
+        const textWrap = document.createElement('div');
+        const t = document.createElement('div');
+        t.className = 'option-title';
+        t.textContent = opt.title;
+        const h = document.createElement('div');
+        h.className = 'option-hint';
+        h.textContent = opt.hint;
+        textWrap.append(t,h);
+
+        tile.append(radio, textWrap);
+        tiles.push({ tile, input: radio, value: opt.value });
+
+        const activate = (e)=>{ e.preventDefault(); setSelected(opt.value); };
+        tile.addEventListener('click', activate);
+        tile.addEventListener('keydown', e=>{
+          if (e.key === 'Enter' || e.key === ' ') activate(e);
+        });
+        choices.appendChild(tile);
+      });
+      setSelected(selected);
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.justifyContent = 'flex-end';
+      actions.style.gap = '8px';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'İptal';
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.textContent = 'Dışa Aktar';
+      confirmBtn.className = 'primary';
+
+      const cleanup = (val)=>{
+        backdrop.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+        backdrop.remove();
+        resolve(val);
+      };
+      const onBackdrop = (ev)=>{ if (ev.target === backdrop) cleanup(null); };
+      const onKey = (ev)=>{ if (ev.key === 'Escape') cleanup(null); };
+
+      cancelBtn.addEventListener('click', ()=> cleanup(null));
+      confirmBtn.addEventListener('click', ()=> cleanup(selected));
+      backdrop.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+
+      actions.append(cancelBtn, confirmBtn);
+      card.append(title, info, choices, actions);
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+      setTimeout(()=> confirmBtn.focus(), 50);
+    });
+  }
+
+  async function exportAccountsTSV(){
+    const scope = await showAccountExportDialog();
+    if (!scope) return;
+
     const headers = ['Hesap Kodu', 'Hesap Adı', 'Taraf'];
     const rows = [headers.join('\t')];
-    
-    // Tüm hesapları (ana hesaplar + alt hesaplar) al ve sırala
-    const allAccounts = getAllAccountsFlat();
-    allAccounts.forEach(acc => {
-      rows.push([acc.code, acc.name, acc.side].join('\t'));
+
+    const accounts = scope === 'subs'
+      ? (SUBACCOUNTS || []).map(sa=>{
+          const meta = getAccMeta(sa.code);
+          return { code: sa.code, name: sa.name, side: meta?.side || '' };
+        }).sort((a,b)=> a.code.localeCompare(b.code))
+      : getAllAccountsFlat();
+
+    accounts.forEach(acc => {
+      rows.push([acc.code, acc.name, acc.side || ''].join('\t'));
     });
-    
+
     const tsv = '\uFEFF' + rows.join('\n');
     const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -6100,6 +6283,34 @@ function selectVoucherFromList() {
    HESAP PLANI MODAL & BİNDİNG
    ============================= */
 
+// Üst hesap seçimini her zaman güncel tut
+function populateCoaParentSelect(preferCode = ''){
+  const parentSel = document.getElementById('coaParent');
+  if (!parentSel) return;
+
+  const previous = parentSel.value;
+  const options = buildAccountOptions();
+
+  parentSel.innerHTML = '';
+  if (!options.length){
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = '(Hesap yok)';
+    parentSel.appendChild(empty);
+    return;
+  }
+
+  options.forEach(o=>{
+    const op = document.createElement('option');
+    op.value = o.code;
+    op.textContent = o.label;
+    parentSel.appendChild(op);
+  });
+
+  const preferred = [preferCode, previous].find(code => code && options.some(o=>o.code===code)) || '';
+  if (preferred) parentSel.value = preferred;
+}
+
 // Tüm fiş satırlarındaki hesap select'lerini yeniden oluştur (alt hesap eklendiğinde çağır)
 function refreshAllAccountSelectElements(){
   const options = buildAccountOptions();
@@ -6121,6 +6332,9 @@ function refreshAllAccountSelectElements(){
   
   // Hesap planı güncelleme dropdown'ını da güncelle
   populateCoaUpdateSelect();
+
+  // Üst hesap select'ini güncelle
+  populateCoaParentSelect(CURRENT_COA_SELECTED_CODE);
 
   // Stok raporu eşleştirme select'ini de güncelle
 if (document.getElementById('rpStockPair')) populateStockPairSelect();
@@ -6160,7 +6374,11 @@ function syncCoaSelection(code, { ensureVisible=false } = {}){
   const parentSel = document.getElementById('coaParent');
   if (parentSel){
     const hasOption = Array.from(parentSel.options).some(opt => opt.value === selectedCode);
-    parentSel.value = hasOption ? selectedCode : parentSel.value;
+    if (!parentSel.options.length || (selectedCode && !hasOption)){
+      populateCoaParentSelect(selectedCode);
+    }
+    const afterPopulate = Array.from(parentSel.options).some(opt => opt.value === selectedCode);
+    if (selectedCode && afterPopulate) parentSel.value = selectedCode;
   }
 
   const updateSelect = document.getElementById('coaUpdateSelect');
@@ -6190,14 +6408,7 @@ function showCoaModal(){
   // Üst hesap select'ini doldur
   const parentSel = document.getElementById('coaParent');
   const prevParent = parentSel ? parentSel.value : '';
-  parentSel.innerHTML = '';
-  buildAccountOptions().forEach(o=>{
-    const op = document.createElement('option');
-    op.value = o.code;
-    // Üst hesap listesinde de hiyerarşik görünsün:
-    op.textContent = o.label;
-    parentSel.appendChild(op);
-  });
+  populateCoaParentSelect(CURRENT_COA_SELECTED_CODE || prevParent || LAST_USED_ACCOUNT);
 
   // Listeyi çiz
   renderCoaList();
@@ -6319,11 +6530,7 @@ function renderCoaList(){
     row.dataset.code = acc.code;
 
     row.addEventListener('click', () => {
-      document.querySelectorAll('#coaList .row.coa-selected').forEach(el => {
-        if (el !== row) el.classList.remove('coa-selected');
-      });
-      row.classList.add('coa-selected');
-      CURRENT_COA_SELECTED_CODE = acc.code;
+      syncCoaSelection(acc.code, { ensureVisible:false });
     });
 
     row.addEventListener('dblclick', () => {
@@ -6334,6 +6541,119 @@ function renderCoaList(){
     if (!q || hay.includes(q)) box.appendChild(row);
   });
   highlightCoaListSelection(CURRENT_COA_SELECTED_CODE, { ensureVisible:false });
+}
+
+function setCoaMsg(text, type='info'){
+  const el = document.getElementById('coaMsg');
+  if (!el) { if(text) alert(text); return; }
+  el.className = '';
+  el.textContent = '';
+  if (!text) return;
+  let cls = 'alert ';
+  if (type === 'success') cls += 'alert-success';
+  else if (type === 'error') cls += 'alert-error';
+  else cls += 'alert-info';
+  const icon = document.createElement('i');
+  icon.textContent = type === 'success' ? '✓' : (type === 'error' ? '⚠' : 'ℹ');
+  const span = document.createElement('span');
+  span.textContent = String(text);
+  el.className = cls;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.replaceChildren(icon, span);
+}
+
+function toggleCoaPastePanel(force){
+  const panel = document.getElementById('coaPastePanel');
+  if (!panel) return;
+  const willShow = typeof force === 'boolean' ? force : !panel.classList.contains('show');
+  panel.classList.toggle('show', willShow);
+  if (willShow){
+    const ta = document.getElementById('coaPasteInput');
+    if (ta){
+      ta.focus();
+      ta.select();
+    }
+  }
+}
+
+function parsePastedCoa(raw){
+  const lines = String(raw || '').replace(/\r/g,'').split('\n').map(l=>l.trim()).filter(Boolean);
+  const seen = new Set();
+  const items = [];
+  lines.forEach(line=>{
+    let code = '';
+    let name = '';
+    if (line.includes('\t')){
+      const parts = line.split('\t');
+      code = (parts[0] || '').trim();
+      name = parts.slice(1).join(' ').trim();
+    } else {
+      const m = line.match(/^(\S+)\s+(.*)$/);
+      if (m){
+        code = m[1].trim();
+        name = m[2].trim();
+      }
+    }
+    if (!code || !name) return;
+    code = code.replace(/\s+/g,'');
+    if (!/^\d{3}(?:\.\d{2,3})+$/.test(code)) return;
+    const root = code.slice(0,3);
+    if (!ACCOUNTS.some(a => a.code === root)) return;
+    if (seen.has(code)) return;
+    if (ACCOUNTS.some(a => a.code === code)) return;
+    seen.add(code);
+    items.push({ code, name });
+  });
+  return items;
+}
+
+function applyPastedCoa(){
+  const ta = document.getElementById('coaPasteInput');
+  const raw = ta ? ta.value : '';
+  if (!raw || !raw.trim()){
+    alert('Lütfen hesap listesi yapıştırın.');
+    return;
+  }
+  const items = parsePastedCoa(raw);
+  if (!items.length){
+    setCoaMsg('Geçerli alt hesap bulunamadı. Kodları ve adları kontrol edin.', 'error');
+    return;
+  }
+  const existing = new Set([
+    ...ACCOUNTS.map(a=>a.code),
+    ...(Array.isArray(SUBACCOUNTS) ? SUBACCOUNTS.map(sa=>sa.code) : [])
+  ]);
+  const added = [];
+  const skipped = [];
+  items.forEach(it=>{
+    if (existing.has(it.code)) { skipped.push({code:it.code, reason:'Zaten var'}); return; }
+    const parent = splitAncestors(it.code)[0] || it.code.slice(0,3);
+    if (!accountExistsInPlan(parent)) { skipped.push({code:it.code, reason:'Üst hesap bulunamadı'}); return; }
+    if (hasAnyPostingFor(parent)) { skipped.push({code:it.code, reason:'Üst hesapta işlem var'}); return; }
+    added.push(it);
+    existing.add(it.code);
+  });
+  if (!added.length){
+    const msg = skipped.length ? 'Uygun yeni alt hesap bulunamadı. (Üst hesap hareketi veya tekrarlar nedeniyle atlandı.)' : 'Uygun alt hesap bulunamadı.';
+    setCoaMsg(msg, 'error');
+    return;
+  }
+  SUBACCOUNTS.push(...added);
+  saveSubaccounts();
+  renderCoaList();
+  refreshAllAccountSelectElements();
+  const info = skipped.length ? ` (${skipped.length} satır atlandı.)` : '';
+  setCoaMsg(`${added.length} adet alt hesap eklendi.${info}`, 'success');
+  if (ta) ta.value = '';
+  toggleCoaPastePanel(false);
+}
+
+function clearPastedCoa(){
+  const ta = document.getElementById('coaPasteInput');
+  if (ta){
+    ta.value = '';
+    ta.focus();
+  }
 }
 
 // Alt hesap ekleme
@@ -6402,7 +6722,12 @@ function populateCoaUpdateSelect(){
 
 // Hesap adı güncelleme
 function onCoaUpdate(){
-  const code = document.getElementById('coaUpdateSelect').value.trim();
+  const selectEl = document.getElementById('coaUpdateSelect');
+  const fallbackCode = CURRENT_COA_SELECTED_CODE || '';
+  const code = (selectEl ? selectEl.value : '').trim() || fallbackCode.trim();
+  if (selectEl && code && selectEl.value !== code && [...selectEl.options].some(o=>o.value===code)) {
+    selectEl.value = code;
+  }
   const newName = document.getElementById('coaUpdateName').value.trim();
   
   if (!code) { 
@@ -6447,6 +6772,49 @@ function onCoaUpdate(){
   }
 }
 
+// Hesap silme kontrolü
+function canDeleteAccount(code){
+  if (!code) return { ok:false, reason:'Lütfen silinecek bir hesap seçin.' };
+  const isMainCode = /^\d{3}$/.test(code);
+  if (isMainCode) return { ok:false, reason:'Ana hesaplar silinemez.' };
+  const isSub = SUBACCOUNTS.some(sa => sa.code === code);
+  if (!isSub) return { ok:false, reason:'Silinecek hesap bulunamadı veya alt hesap seçilmedi.' };
+  const totals = sumAccountFamilyTotals(code);
+  const hasMovement = toNum(totals.debit) > 0 || toNum(totals.credit) > 0;
+  if (hasMovement) return { ok:false, reason:'İşlem gören hesap silinemez.' };
+  if (accountHasChildren(code)) return { ok:false, reason:'Alt hesapları olan hesap silinemez. Önce alt hesapları kaldırın.' };
+  return { ok:true };
+}
+
+// Hesap silme
+function onCoaDelete(){
+  const selectEl = document.getElementById('coaUpdateSelect');
+  const fallbackCode = CURRENT_COA_SELECTED_CODE || '';
+  const code = (selectEl ? selectEl.value : '').trim() || fallbackCode.trim();
+  if (selectEl && code && selectEl.value !== code && [...selectEl.options].some(o=>o.value===code)) {
+    selectEl.value = code;
+  }
+  const check = canDeleteAccount(code);
+  if (!check.ok){
+    alert(check.reason);
+    return;
+  }
+  const confirmed = confirm('Bu hesabı silmek istediğinize emin misiniz?');
+  if (!confirmed) return;
+  const idx = SUBACCOUNTS.findIndex(sa => sa.code === code);
+  if (idx === -1){
+    alert('Hesap bulunamadı.');
+    return;
+  }
+  SUBACCOUNTS.splice(idx, 1);
+  saveSubaccounts();
+  CURRENT_COA_SELECTED_CODE = '';
+  document.getElementById('coaUpdateName').value = '';
+  renderCoaList();
+  refreshAllAccountSelectElements();
+  alert(`Hesap silindi: ${code}`);
+}
+
 // Hesap seçildiğinde mevcut adı göster
 function onCoaUpdateSelectChange(){
   const code = document.getElementById('coaUpdateSelect').value;
@@ -6478,6 +6846,16 @@ function initSubaccountsUI(){
   // Hesap güncelleme butonu ve select değişimi
   const updateBtn = document.getElementById('coaUpdate');
   if (updateBtn) updateBtn.addEventListener('click', onCoaUpdate);
+  const deleteBtn = document.getElementById('coaDelete');
+  if (deleteBtn) deleteBtn.addEventListener('click', onCoaDelete);
+  const pasteToggle = document.getElementById('btnCoaPasteToggle');
+  if (pasteToggle) pasteToggle.addEventListener('click', ()=> toggleCoaPastePanel());
+  const pasteClose = document.getElementById('coaPasteClose');
+  if (pasteClose) pasteClose.addEventListener('click', ()=> toggleCoaPastePanel(false));
+  const pasteApply = document.getElementById('coaPasteApply');
+  if (pasteApply) pasteApply.addEventListener('click', applyPastedCoa);
+  const pasteClear = document.getElementById('coaPasteClear');
+  if (pasteClear) pasteClear.addEventListener('click', clearPastedCoa);
   
   const updateSelect = document.getElementById('coaUpdateSelect');
   if (updateSelect) updateSelect.addEventListener('change', onCoaUpdateSelectChange);
@@ -6539,6 +6917,8 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
       const t = e.target;
       // Hesap planı modalında Enter ile ilerleme
       if(t.closest('#coaModal')){
+        // Yapıştır alanında Enter boşluk satırı açabilsin
+        if (t.id === 'coaPasteInput' || t.closest('#coaPastePanel')) return;
         e.preventDefault();
         focusNextInCoa(t);
         return;
