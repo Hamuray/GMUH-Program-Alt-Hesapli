@@ -217,6 +217,13 @@
   #mizanTable tbody tr.mizan-row-selected td{
     color:inherit !important;
   }
+  #mizanTable tbody tr:hover{
+    background:#c5f3d3 !important;
+    color:#0f5132 !important;
+  }
+  #mizanTable tbody tr:hover td{
+    color:inherit !important;
+  }
 
   .reports-grid{
     display:flex;
@@ -322,8 +329,7 @@
     }
 
     /* --- PASİF (okunur) FİŞ GÖRÜNÜMÜ --- */
-    #voucherTable input:disabled,
-    #voucherTable select:disabled {
+    #voucherTable input:disabled {
       background:#f3f4f6;
       color:#6b7280;
     }
@@ -338,7 +344,7 @@
   /* 1) "Hesap Kodu ve Adı" (1. sütun) — genişlet */
   #voucherTable thead th:nth-child(1){ width: 340px !important; }
   #voucherTable tbody td:nth-child(1){ max-width: 340px; }
-  #voucherTable tbody td:nth-child(1) select{
+  #voucherTable tbody td:nth-child(1) input.account-input{
     width:100%;
     box-sizing:border-box;
     overflow:hidden;
@@ -373,6 +379,66 @@
   #voucherTable tbody tr td:nth-child(3) { width: 110px; }
   #voucherTable tbody tr td:nth-child(4) { width: 90px; }
   #voucherTable tbody tr td:nth-child(8) { width: 100px; }
+  #voucherTable{
+    overflow:visible;
+  }
+  #voucherTable td,
+  #voucherTable th{
+    overflow:visible;
+  }
+  #voucherTable .acc-dropdown{
+    position:relative;
+  }
+  #voucherTable .acc-dropdown-list{
+    position:absolute;
+    left:0;
+    top:100%;
+    margin-top:4px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    max-height:260px;
+    overflow:auto;
+    box-shadow:0 10px 24px rgba(0,0,0,0.12);
+    z-index:2000;
+    display:none;
+    min-width:100%;
+    width:max-content;
+    max-width:80vw;
+  }
+  #voucherTable .acc-dropdown-list.open{ display:block; }
+  #voucherTable .acc-option{
+    padding:6px 10px;
+    cursor:pointer;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    white-space:nowrap;
+    background:#fff;
+  }
+  #voucherTable .acc-option.main{ color:#111; }
+  #voucherTable .acc-option.sub{ color:#2563eb; }
+  #voucherTable .acc-option .acc-code{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  #voucherTable .acc-option .acc-indent{
+    display:inline-block;
+    width:0;
+  }
+  #voucherTable .acc-option .acc-arrow{
+    color:#2563eb;
+    font-weight:700;
+    font-size:12px;
+    line-height:1;
+  }
+  #voucherTable .acc-option.sub .acc-text{ color:#2563eb; }
+  #voucherTable .acc-option .acc-balance{ color:inherit; }
+  #voucherTable .acc-option.active,
+  #voucherTable .acc-option:hover{
+    background:#c5f3d3;
+  }
 
     /* === Voucher toolbar (select + actions) ================================== */
     .voucher-toolbar{
@@ -1637,7 +1703,271 @@ function buildAccountOptions(){
     const indent = depth ? '↳ '.repeat(depth) : '';
     const label = `${indent}${acc.code}. ${acc.name}`;
     const disabledPosting = accountHasChildren(acc.code); // altı varsa bu koda kayıt ENGEL
-    return { code: acc.code, label, disabledPosting };
+    return { code: acc.code, label, name: acc.name, disabledPosting };
+  });
+}
+
+let ACCOUNT_OPTIONS_CACHE = [];
+function refreshAccountOptionsCache(){
+  ACCOUNT_OPTIONS_CACHE = buildAccountOptions();
+}
+
+function hasPostingForMainAccount(rootCode){
+  return DB.vouchers.some(v => (v.lines||[]).some(ln =>
+    String(ln.account) === String(rootCode) && (toNum(ln.debit)>0 || toNum(ln.credit)>0)
+  ));
+}
+
+function hasPostingForAnySubAccount(rootCode){
+  const prefix = String(rootCode) + '.';
+  return DB.vouchers.some(v => (v.lines||[]).some(ln => {
+    const acc = String(ln.account||'');
+    return acc.startsWith(prefix) && (toNum(ln.debit)>0 || toNum(ln.credit)>0);
+  }));
+}
+
+function canPostToAccount(code){
+  const c = String(code||'');
+  const root = c.split('.')[0];
+  const isSub = c.includes('.');
+  if (isSub) {
+    if (hasPostingForMainAccount(root)) {
+      return { ok:false, reason:`${root} ana hesabında kayıt var. Bu yüzden alt hesaplara yeni kayıt yapılamaz.` };
+    }
+  } else {
+    if (hasPostingForAnySubAccount(root)) {
+      return { ok:false, reason:`${root} ana hesabına bağlı alt hesaplarda kayıt var. Bu yüzden ana hesaba yeni kayıt yapılamaz.` };
+    }
+  }
+  return { ok:true };
+}
+
+function getAccountBalance(code){
+  const root = String(code || '');
+  if (!root) return 0;
+  const prefix = root + '.';
+  let debit = 0;
+  let credit = 0;
+  (DB.vouchers || []).forEach(v=>{
+    (v.lines || []).forEach(ln=>{
+      const acc = String(ln.account || '');
+      if (acc === root || acc.startsWith(prefix)){
+        debit += toNum(ln.debit);
+        credit += toNum(ln.credit);
+      }
+    });
+  });
+  return debit - credit;
+}
+
+function formatBalanceSuffix(code){
+  const diff = getAccountBalance(code);
+  const abs = Math.abs(diff);
+  const side = abs < 0.005 ? '' : (diff >= 0 ? ' B' : ' A');
+  return ` (${fmt(abs)}${side})`;
+}
+
+function filterAccountOptionsByCode(query){
+  const q = String(query || '').trim();
+  if (!q) return ACCOUNT_OPTIONS_CACHE;
+  return ACCOUNT_OPTIONS_CACHE.filter(o=> String(o.code || '').startsWith(q));
+}
+
+function renderAccountDropdownList(listEl, query, state, inputEl){
+  const items = filterAccountOptionsByCode(query);
+  listEl.innerHTML = '';
+  state.items = items;
+  state.activeIndex = items.length ? 0 : -1;
+  state.navUsed = false;
+
+  items.forEach((o, idx)=>{
+    const row = document.createElement('div');
+    row.className = `acc-option ${o.code.includes('.') ? 'sub' : 'main'}` + (idx === state.activeIndex ? ' active' : '');
+    row.dataset.code = o.code;
+    const namePart = o.name ? `. ${o.name}` : '';
+    const depth = Math.max(0, (o.code.match(/\./g) || []).length);
+    const indentPx = depth ? depth * 12 : 0;
+    const arrow = depth ? '<span class="acc-arrow" aria-hidden="true">↳</span>' : '';
+    row.innerHTML = `
+      <span class="acc-code">
+        <span class="acc-indent" style="width:${indentPx}px"></span>
+        ${arrow}
+        <span class="acc-text">${o.code}${namePart}</span>
+      </span>
+      <span class="acc-balance">${formatBalanceSuffix(o.code)}</span>
+    `;
+    listEl.appendChild(row);
+  });
+
+  if (inputEl){
+    const wasOpen = listEl.classList.contains('open');
+    listEl.classList.add('open');
+    listEl.style.visibility = 'hidden';
+    listEl.style.minWidth = inputEl.offsetWidth + 'px';
+    listEl.style.width = 'max-content';
+    const w = listEl.scrollWidth || inputEl.offsetWidth;
+    listEl.style.width = Math.min(w, Math.floor(window.innerWidth * 0.85)) + 'px';
+    listEl.style.visibility = '';
+    if (!wasOpen) listEl.classList.remove('open');
+  }
+}
+
+function isValidAccountCode(code){
+  return ACCOUNT_OPTIONS_CACHE.some(o=>o.code === code);
+}
+
+function getAccountCodeFromInput(inputEl){
+  const raw = String(inputEl.value || '').trim();
+  if (!raw) return '';
+  if (/\.\s*$/.test(raw)) return '';
+  if (isValidAccountCode(raw)) return raw;
+  const m = raw.match(/^(\d{3}(?:\.\d+)*)/);
+  return m && isValidAccountCode(m[1]) ? m[1] : '';
+}
+
+function setAccountInputCode(inputEl, code){
+  const opt = ACCOUNT_OPTIONS_CACHE.find(o=>o.code === code);
+  if (!opt) return;
+  inputEl.dataset.code = code;
+  inputEl.value = opt.name ? `${opt.code}. ${opt.name}` : opt.code;
+}
+
+function showAccSelectError(msg){
+  const msgElement = document.getElementById('v_msg');
+  if (msgElement){
+    msgElement.textContent = msg;
+    msgElement.classList.add('error');
+    clearTimeout(showAccSelectError._t);
+    showAccSelectError._t = setTimeout(()=>{
+      if (msgElement.textContent === msg) msgElement.textContent = '';
+    }, 2500);
+  } else {
+    alert(msg);
+  }
+}
+
+function validateAccountInput(inputEl){
+  const code = getAccountCodeFromInput(inputEl);
+  if (!code) return '';
+  if (!isValidAccountCode(code)){
+    showAccSelectError('Geçersiz hesap kodu. Listeden seçim yapın.');
+    inputEl.value = '';
+    return '';
+  }
+  const postingCheck = canPostToAccount(code);
+  if (!postingCheck.ok){
+    showAccSelectError(postingCheck.reason);
+    inputEl.value = '';
+    inputEl.dataset.code = '';
+    return '';
+  }
+  setAccountInputCode(inputEl, code);
+  LAST_USED_ACCOUNT = code;
+  markDirty();
+  recalcVoucherTotals();
+  return code;
+}
+
+// Kullanıcı yeni alt hesap açmak istediğinde kullanılan onay penceresi
+function showMissingAccountDialog({ code = '', onConfirm, onCancel } = {}){
+  const existing = document.getElementById('missingAccountDialog');
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'missingAccountDialog';
+  backdrop.className = 'modal-backdrop show';
+  backdrop.setAttribute('aria-hidden','false');
+
+  const card = document.createElement('div');
+  card.className = 'modal-card';
+  card.style.maxWidth = '520px';
+  card.style.padding = '16px';
+  card.style.gap = '12px';
+
+  const title = document.createElement('h3');
+  title.textContent = 'Hesap bulunamadı';
+  title.style.margin = '0';
+
+  const msg = document.createElement('p');
+  msg.textContent = `Hesap planında bulunamadı. ${code} bu hesabı açmak istiyor musunuz?`;
+  msg.style.margin = '0';
+
+  const actions = document.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.justifyContent = 'flex-end';
+  actions.style.gap = '8px';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Vazgeç';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = 'Hesap Aç';
+  confirmBtn.className = 'primary';
+
+  const cleanup = (cb)=>{
+    backdrop.removeEventListener('click', onBackdrop);
+    document.removeEventListener('keydown', onKeyDown);
+    backdrop.remove();
+    if (typeof cb === 'function') cb();
+  };
+  const onBackdrop = (ev)=>{ if (ev.target === backdrop) cleanup(onCancel); };
+  const onKeyDown = (ev)=>{ if (ev.key === 'Escape') cleanup(onCancel); };
+
+  cancelBtn.addEventListener('click', ()=> cleanup(onCancel));
+  confirmBtn.addEventListener('click', ()=> cleanup(onConfirm));
+  backdrop.addEventListener('click', onBackdrop);
+  document.addEventListener('keydown', onKeyDown);
+
+  actions.append(cancelBtn, confirmBtn);
+  card.append(title, msg, actions);
+  backdrop.appendChild(card);
+  document.body.appendChild(backdrop);
+  setTimeout(()=> confirmBtn.focus(), 30);
+}
+
+function openCoaPasteForCode(code){
+  const normalized = String(code || '').trim();
+  const parent = splitAncestors(normalized)[0] || normalized.slice(0,3);
+  CURRENT_COA_SELECTED_CODE = parent || '';
+  showCoaModal();
+  toggleCoaPastePanel(true);
+  const ta = document.getElementById('coaPasteInput');
+  if (ta){
+    const existing = ta.value.trim();
+    const prefix = existing ? (existing + '\n') : '';
+    ta.value = prefix + (normalized ? normalized + '\t' : '');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+  setCoaMsg(`Kod ${normalized} için hesap adı girip "Ekle"ye basın.`, 'info');
+}
+
+function startMissingSubaccountFlow(code, inputEl){
+  const normalized = String(code || '').trim();
+  if (!normalized) return;
+  const root = normalized.slice(0,3);
+  if (!ACCOUNTS.some(a=>a.code === root)){
+    showAccSelectError(`${root} ana hesabı bulunamadı. Önce ana hesabı açın.`);
+    return;
+  }
+  const parent = splitAncestors(normalized)[0] || root;
+  if (!accountExistsInPlan(parent)){
+    showAccSelectError(`Önce ${parent} hesabını açın.`);
+    return;
+  }
+  const parentCheck = canCreateSubUnder(parent);
+  if (!parentCheck.ok){
+    showAccSelectError(parentCheck.reason);
+    return;
+  }
+  showMissingAccountDialog({
+    code: normalized,
+    onConfirm: ()=> openCoaPasteForCode(normalized),
+    onCancel: ()=>{
+      if (inputEl){
+        inputEl.focus();
+        if (inputEl.select) inputEl.select();
+      }
+    }
   });
 }
 
@@ -1908,40 +2238,183 @@ function randomIntBetween(min, max){
   }
 
   // ---------- Fiş Girişi ----------
-  function makeAccSelect(){
-  const sel = document.createElement('select');
-  const e = document.createElement('option'); e.value=''; e.textContent='(Seçiniz)'; sel.appendChild(e);
+function makeAccSelect(){
+  if (!ACCOUNT_OPTIONS_CACHE.length) refreshAccountOptionsCache();
+  const wrap = document.createElement('div');
+  wrap.className = 'acc-dropdown';
 
-  // Hiyerarşik etiketlerle doldur
-  buildAccountOptions().forEach(o=>{
-    const op = document.createElement('option');
-    op.value = o.code;
-    op.textContent = o.label;
-    sel.appendChild(op);
-  });
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'account-input';
+  input.placeholder = 'Hesap kodu';
+  input.setAttribute('inputmode', 'text');
 
-  sel.addEventListener('change', ()=>{
-    // Alt hesabı olan ana hesaba kayıt yapılmasını BLOKLA
-    if (sel.value && accountHasChildren(sel.value)){
-      const msgElement = document.getElementById('v_msg');
-      if (msgElement) {
-        msgElement.textContent = 'Bu hesaba doğrudan kayıt yapılamaz, lütfen alt hesap seçin.';
-        msgElement.classList.add('error');
-      } else {
-        alert('Bu hesaba doğrudan kayıt yapılamaz, lütfen alt hesap seçin.');
-      }
-      
-      sel.value = '';
+  const list = document.createElement('div');
+  list.className = 'acc-dropdown-list';
+
+  const state = { items: [], activeIndex: -1, suppressBlur: false, navUsed: false };
+
+  const showList = ()=>{ list.classList.add('open'); };
+  const hideList = ()=>{ list.classList.remove('open'); };
+  const updateActive = (nextIdx)=>{
+    if (!state.items.length) return;
+    const idx = Math.max(0, Math.min(state.items.length - 1, nextIdx));
+    state.activeIndex = idx;
+    Array.from(list.children).forEach((el,i)=>{
+      el.classList.toggle('active', i === idx);
+    });
+    const activeEl = list.children[idx];
+    if (activeEl) activeEl.scrollIntoView({ block:'nearest' });
+  };
+  const selectByCode = (code)=>{
+    const chk = canPostToAccount(code);
+    if (!chk.ok){
+      showAccSelectError(chk.reason);
       return;
     }
-    LAST_USED_ACCOUNT = sel.value || LAST_USED_ACCOUNT;
+    state.suppressBlur = true;
+    setAccountInputCode(input, code);
+    input.dataset.code = code;
+    input.dataset.prevCode = code;
+    input.dataset.prevDisplay = input.value;
+    input.dataset.justSelected = '1';
+    hideList();
     markDirty();
     recalcVoucherTotals();
+    setTimeout(()=>{ state.suppressBlur = false; }, 0);
+  };
+
+  input.addEventListener('focus', ()=>{
+    const code = input.dataset.code || getAccountCodeFromInput(input);
+    if (code) LAST_USED_ACCOUNT = code;
+    input.dataset.prevCode = code || '';
+    input.dataset.prevDisplay = input.value || '';
+    input.dataset.userEdited = '0';
+    state.navUsed = false;
+    if (code){
+      const root = code.split('.')[0];
+      input.value = root + '.';
+      renderAccountDropdownList(list, input.value, state, input);
+      showList();
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    } else {
+      renderAccountDropdownList(list, '', state, input);
+      showList();
+      input.select();
+    }
   });
-  sel.addEventListener('focus', ()=>{
-    if (sel.value) LAST_USED_ACCOUNT = sel.value;
+  input.addEventListener('mousedown', (e)=>{
+    e.preventDefault();
+    input.focus();
+    input.select();
   });
-  return sel;
+
+  input.addEventListener('input', ()=>{
+    input.dataset.userEdited = '1';
+    input.dataset.code = '';
+    state.navUsed = false;
+    renderAccountDropdownList(list, input.value, state, input);
+    showList();
+  });
+
+  input.addEventListener('keydown', (e)=>{
+    if (e.key === 'ArrowDown'){
+      if (!list.classList.contains('open')){
+        renderAccountDropdownList(list, input.value, state, input);
+        showList();
+      }
+      state.navUsed = true;
+      updateActive(state.activeIndex + 1);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'ArrowUp'){
+      if (!list.classList.contains('open')){
+        renderAccountDropdownList(list, input.value, state, input);
+        showList();
+      }
+      state.navUsed = true;
+      updateActive(state.activeIndex - 1);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'Enter'){
+      const rawCode = String(input.value || '').trim();
+      const newSubMatch = rawCode.match(/^(\d{3}(?:\.\d{2})+)$/);
+      const newSubCode = newSubMatch ? newSubMatch[1] : '';
+      if (newSubCode && !accountExistsInPlan(newSubCode)){
+        e.preventDefault();
+        e.stopPropagation();
+        startMissingSubaccountFlow(newSubCode, input);
+        return;
+      }
+      if (list.classList.contains('open') && state.items[state.activeIndex]){
+        selectByCode(state.items[state.activeIndex].code);
+      } else {
+        const code = getAccountCodeFromInput(input);
+        if (code){
+          selectByCode(code);
+        } else if (input.dataset.prevCode){
+          setAccountInputCode(input, input.dataset.prevCode);
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'Escape'){
+      if (input.dataset.prevCode) setAccountInputCode(input, input.dataset.prevCode);
+      hideList();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'Tab'){
+      const code = getAccountCodeFromInput(input);
+      if (code){
+        selectByCode(code);
+      } else if (input.dataset.prevCode){
+        setAccountInputCode(input, input.dataset.prevCode);
+      }
+      hideList();
+      e.stopPropagation();
+      return;
+    }
+  });
+
+  input.addEventListener('blur', ()=>{
+    if (state.suppressBlur) return;
+    if (input.dataset.justSelected === '1'){
+      input.dataset.justSelected = '0';
+      hideList();
+      return;
+    }
+    const hasNewCode = Boolean(getAccountCodeFromInput(input));
+    if (hasNewCode){
+      validateAccountInput(input);
+    }
+    if (!hasNewCode && input.dataset.prevCode){
+      setAccountInputCode(input, input.dataset.prevCode);
+    }
+    hideList();
+  });
+
+  list.addEventListener('mousedown', (e)=>{
+    const row = e.target.closest('.acc-option');
+    if (!row) return;
+    state.suppressBlur = true;
+    const code = row.dataset.code;
+    if (code) selectByCode(code);
+    setTimeout(()=>{ state.suppressBlur = false; }, 0);
+    e.preventDefault();
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(list);
+  return wrap;
 }
 
   function addVoucherRow(pref = {}, afterTr = null){
@@ -1950,9 +2423,11 @@ function randomIntBetween(min, max){
 
   // --- 1. Hesap seçimi ---
   const tdAcc = document.createElement('td');
-  const sel = makeAccSelect();
-  sel.value = pref.account || pref.hesapKodu || '';
-  tdAcc.appendChild(sel);
+  const accWrap = makeAccSelect();
+  const accInput = accWrap.querySelector('input.account-input');
+  const prefAcc = pref.account || pref.hesapKodu || '';
+  if (prefAcc) setAccountInputCode(accInput, prefAcc);
+  tdAcc.appendChild(accWrap);
 
   // --- 2. Borç ---
   const tdDr = document.createElement('td');
@@ -1990,7 +2465,7 @@ function randomIntBetween(min, max){
   btnCopy.title = 'Bu satırı kopyala';
   btnCopy.classList.add('btn-mini-add');   // YENİ: Ekle ile aynı mini buton stili
   btnCopy.addEventListener('click', ()=>{
-    const acc = sel.value || '';
+    const acc = accInput?.dataset.code || getAccountCodeFromInput(accInput) || '';
     const dv  = toNum(dr.value);
     const cv  = toNum(cr.value);
     const qv  = toNum(qty.value);
@@ -2001,7 +2476,7 @@ function randomIntBetween(min, max){
     );
     const target = dv ? last.children[1].querySelector('input')
                       : cv ? last.children[2].querySelector('input')
-                           : last.querySelector('select');
+                           : (last.querySelector('input.account-input'));
     target?.focus(); target?.select?.();
     markDirty(); recalcVoucherTotals();
   });
@@ -2024,7 +2499,7 @@ function randomIntBetween(min, max){
   btnAdd.title = 'Bu satırın altına yeni satır ekle';
   btnAdd.addEventListener('click', ()=>{
     const newTr = addVoucherRow({}, tr); // bu satırın altına
-    const target = newTr.querySelector('select');
+    const target = newTr.querySelector('input.account-input');
     target?.focus();
     markDirty(); recalcVoucherTotals();
   });
@@ -2052,10 +2527,10 @@ function randomIntBetween(min, max){
   attachMoneyMask(qty, null); // Miktar için de maske
 
   // Odak takibi / dirty
-  [sel, dr, cr, qty, dc].forEach(el=>{
+  [accInput, dr, cr, qty, dc].forEach(el=>{
     el.addEventListener('focus', ()=>{ CURRENT_VOUCHER_ROW = tr; });
   });
-  sel.addEventListener('change', markDirty);
+  accInput.addEventListener('change', markDirty);
   dc.addEventListener('input', markDirty);
 
   recalcVoucherTotals();
@@ -2068,7 +2543,8 @@ function randomIntBetween(min, max){
     const rows=document.querySelectorAll('#voucherTable tbody tr');
     const lines=[];
     rows.forEach(r=>{
-      const account=r.children[0].querySelector('select').value;
+      const accInput = r.children[0].querySelector('input.account-input');
+      const account = (accInput?.dataset.code || getAccountCodeFromInput(accInput) || '').trim();
       const debit=toNum(r.children[1].querySelector('input').value);
       const credit=toNum(r.children[2].querySelector('input').value);
       const quantity=toNum(r.children[3].querySelector('input').value);
@@ -2087,7 +2563,8 @@ function randomIntBetween(min, max){
     let unexpectedQty = false;
     rows.forEach(r=>{
       r.classList.remove('voucher-row-warning','voucher-row-quantity-warning');
-      const account=(r.children[0].querySelector('select').value || '').trim();
+      const accInput = r.children[0].querySelector('input.account-input');
+      const account = (accInput?.dataset.code || getAccountCodeFromInput(accInput) || '').trim();
       const dv=toNum(r.children[1].querySelector('input').value);
       const cv=toNum(r.children[2].querySelector('input').value);
       const qv=toNum(r.children[3].querySelector('input').value);
@@ -2186,7 +2663,7 @@ function setVoucherEditable(isEditable){
   document.getElementById('v_desc').disabled  = !isEditable;
 
   // Tablo içi tüm giriş ve butonlar
-  document.querySelectorAll('#voucherTable select, #voucherTable input, #voucherTable button').forEach(el=>{
+  document.querySelectorAll('#voucherTable input, #voucherTable button').forEach(el=>{
     el.disabled = !isEditable;
   });
 
@@ -2235,10 +2712,8 @@ function setVoucherEditable(isEditable){
     v.lines.forEach((ln,i)=>{
       if(!ln.account) throw new Error(`Satır ${i+1}: Hesap Kodu zorunlu.`);
       if((ln.debit>0 && ln.credit>0) || (ln.debit===0 && ln.credit===0)) throw new Error(`Satır ${i+1}: Borç/Alacak tek taraflı olmalı.`);
-// Ana hesabın altı varsa ona kayıt yapılamaz
-if (accountHasChildren(ln.account)) {
-  throw new Error(`Satır ${i+1}: "${ln.account}" bir ana hesaptır ve altında alt hesaplar var. Lütfen alt hesap seçin.`);
-}
+      const postingCheck = canPostToAccount(ln.account);
+      if (!postingCheck.ok) throw new Error(`Satır ${i+1}: ${postingCheck.reason}`);
       td+=toNum(ln.debit); tc+=toNum(ln.credit);
     });
     if(Math.abs(td-tc)>0.005) throw new Error('Fiş dengede değil.');
@@ -3849,11 +4324,9 @@ function makeJournalDump4MainHTML(){
           }
           rows.forEach(function(row){
             row.style.cursor = 'pointer';
-            ['click','dblclick'].forEach(evt=>{
-              row.addEventListener(evt, function(){
-                const key = row.getAttribute('data-voucher-key');
-                sendToMain(key);
-              });
+            row.addEventListener('dblclick', function(){
+              const key = row.getAttribute('data-voucher-key');
+              sendToMain(key);
             });
           });
 
@@ -4327,79 +4800,32 @@ function makeBalanceSheetReportHTML(){
   const PERIOD    = ORDINARY + EXTRA_INC + EXTRA_EXP;
   const TAX_691   = net6['691'] || 0;
   const NET_PROFIT = PERIOD + TAX_691; // DÖNEM NET KARI/ ZARARI
+  const computedNetProfit = (used6 && Math.abs(NET_PROFIT) > 0.005) ? NET_PROFIT : 0;
 
-  // 6xx kullanılmış ve net ≠ 0 ise: 59 grubuna 590 (+) veya 591 (-) ekle
-  if (used6 && Math.abs(NET_PROFIT) > 0.005){
-    if(!byGroup['59']) byGroup['59'] = {sum:0, accounts:[]};
-
-    // Çifte sayımı önlemek için mevcut 590/591 varsa temizle
-    const g59 = byGroup['59'];
-    for(let i=g59.accounts.length-1;i>=0;i--){
-      const a = g59.accounts[i];
-      if (a.code==='590' || a.code==='591'){
-        g59.sum -= a.amount;
-        g59.accounts.splice(i,1);
-      }
-    }
-
-    if (NET_PROFIT > 0){
-      g59.accounts.push({code:'590', name:getAccName('590'), amount: NET_PROFIT});  // pozitif
-      g59.sum += NET_PROFIT;
-    }else{
-      g59.accounts.push({code:'591', name:getAccName('591'), amount: NET_PROFIT});  // negatif
-      g59.sum += NET_PROFIT;
-    }
-  }
-
-  // 4) Sütunları (Aktif/Pasif) üret
-  function buildColumn(mainList, isLeft){
-    let sideSum = 0;
-    let html = '<table class="bs-col"><tbody>';
-
-    mainList.forEach(main=>{
-      const usedGroups = (main.groups||[]).filter(g=> byGroup[g] && byGroup[g].accounts.length);
-      if(!usedGroups.length) return;
-
-      const mainSum = usedGroups.reduce((s,g)=> s + byGroup[g].sum, 0);
-      sideSum += mainSum;
-
-      html += `<tr class="main">
-        <td><span class="code">${main.code}</span> ${escapeHTML(NAMES[main.code]||'')}</td>
-        <td class="right bold">${fmt(mainSum)}</td>
-      </tr>`;
-
-      usedGroups.forEach(g=>{
-        const gData = byGroup[g];
-        html += `<tr class="group">
-          <td><span class="code">${g}</span> ${escapeHTML(NAMES[g]||'')}</td>
-          <td class="right group-total">${fmt(gData.sum)}</td>
-        </tr>`;
-
-        gData.accounts.sort((a,b)=> a.code.localeCompare(b.code)).forEach(a=>{
-          html += `<tr class="acc">
-            <td>${escapeHTML(a.code)}. ${escapeHTML(a.name||'')}</td>
-            <td class="right">${fmt(a.amount)}</td>
-          </tr>`;
-        });
-      });
+  // Hesap adları (590/591 ekleme işlemi için)
+  const accNames = {};
+  Object.keys(byGroup).forEach(g=>{
+    (byGroup[g].accounts||[]).forEach(a=>{
+      accNames[a.code] = a.name || '';
     });
-
-    const totalLabel = isLeft ? '1VT VARLIK (AKTİF) TOPLAM' : '5KT KAYNAKLAR (PASİF) TOPLAMI';
-    html += `<tr class="grand">
-      <td>${totalLabel}</td>
-      <td class="right bold">${fmt(sideSum)}</td>
-    </tr>`;
-
-    html += '</tbody></table>';
-    return {html, total: sideSum};
-  }
-
-  const left  = buildColumn(LEFT_MAINS,  true);
-  const right = buildColumn(RIGHT_MAINS, false);
+  });
+  accNames['590'] = accNames['590'] || getAccName('590') || '';
+  accNames['591'] = accNames['591'] || getAccName('591') || '';
 
   // Tarih aralığı başlık metni
   const toDMY = d => d ? dmyFromISO(ymd(d)) : '';
   const rangeText = (from||to) ? ` (${toDMY(from)} – ${toDMY(to)})` : '';
+
+  // Raporu veri + client-side render ile kur
+  const payload = {
+    leftMains: LEFT_MAINS,
+    rightMains: RIGHT_MAINS,
+    names: NAMES,
+    groups: byGroup,
+    netProfit: computedNetProfit,
+    accNames,
+    rangeText
+  };
 
   // 5) Stil ve çıktı
   const style = `
@@ -4416,16 +4842,157 @@ function makeBalanceSheetReportHTML(){
     .group-total{ color:#1d4ed8; font-weight:700 }
     .grand td{ background:#e5e7eb; font-weight:800 }
     .code{ display:inline-block; min-width:26px; font-weight:800; color:#374151; margin-right:6px; }
+    #bs-alert-slot{margin:6px 0 10px 0;}
+    .bs-alert{padding:8px 10px; border-radius:8px; border:1px solid #fdba74; background:#fff7ed; color:#9a3412; font-weight:600; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .bs-alert.success{border-color:#bbf7d0; background:#ecfdf3; color:#166534;}
+    .bs-alert.warn{border-color:#fdba74; background:#fff7ed; color:#9a3412;}
+    .bs-alert-btn{padding:6px 10px; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:8px; cursor:pointer; font-weight:700;}
+    .bs-alert-btn:hover{background:#e0e7ff;}
     @media print {.bs-title{margin-top:6px}}
   </style>`;
 
   return `
     ${style}
-    <div class="bs-title">DÖNEM SONU BİLANÇO${escapeHTML(rangeText)}</div>
-    <div class="bs-grid">
-      <section>${left.html}</section>
-      <section>${right.html}</section>
-    </div>
+    <div id="bs-alert-slot" aria-live="polite"></div>
+    <div id="bs-root"></div>
+    <script>
+      (function(){
+        const DATA = ${JSON.stringify(payload)};
+        const TOL = 0.005;
+
+        const fmt = (n)=> {
+          const v = Number(n);
+          if (!isFinite(v) || Math.abs(v) < 1e-9) return '0,00';
+          return new Intl.NumberFormat('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+        };
+        const escapeHTML = (s)=> String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');
+        const clone = (obj)=> JSON.parse(JSON.stringify(obj));
+
+        let state = clone(DATA);
+        let profitInjected = false;
+
+        const slot = document.getElementById('bs-alert-slot');
+        const toolbar = document.querySelector('.toolbar');
+        if (toolbar && slot){
+          toolbar.insertAdjacentElement('afterend', slot);
+        }
+
+        function buildColumn(mainList, isLeft){
+          let sideSum = 0;
+          let html = '<table class="bs-col"><tbody>';
+
+          mainList.forEach(main=>{
+            const usedGroups = (main.groups||[]).filter(g=>{
+              const gData = state.groups[g];
+              return gData && Array.isArray(gData.accounts) && gData.accounts.length;
+            });
+            if(!usedGroups.length) return;
+
+            const mainSum = usedGroups.reduce((s,g)=> s + (state.groups[g]?.sum || 0), 0);
+            sideSum += mainSum;
+
+            html += '<tr class=\"main\">' +
+              '<td><span class=\"code\">'+escapeHTML(main.code)+'</span> '+escapeHTML(state.names[main.code]||'')+'</td>' +
+              '<td class=\"right bold\">'+fmt(mainSum)+'</td>' +
+            '</tr>';
+
+            usedGroups.forEach(g=>{
+              const gData = state.groups[g];
+              html += '<tr class=\"group\">' +
+                '<td><span class=\"code\">'+escapeHTML(g)+'</span> '+escapeHTML(state.names[g]||'')+'</td>' +
+                '<td class=\"right group-total\">'+fmt(gData.sum)+'</td>' +
+              '</tr>';
+
+              gData.accounts
+                .slice()
+                .sort((a,b)=> String(a.code).localeCompare(String(b.code)))
+                .forEach(a=>{
+                  html += '<tr class=\"acc\">' +
+                    '<td>'+escapeHTML(a.code)+'. '+escapeHTML(a.name||'')+'</td>' +
+                    '<td class=\"right\">'+fmt(a.amount)+'</td>' +
+                  '</tr>';
+                });
+            });
+          });
+
+          const totalLabel = isLeft ? '1VT VARLIK (AKTİF) TOPLAM' : '5KT KAYNAKLAR (PASİF) TOPLAMI';
+          html += '<tr class=\"grand\">' +
+            '<td>'+totalLabel+'</td>' +
+            '<td class=\"right bold\">'+fmt(sideSum)+'</td>' +
+          '</tr>';
+
+          html += '</tbody></table>';
+          return { html, total: sideSum };
+        }
+
+        function render(){
+          const left  = buildColumn(state.leftMains,  true);
+          const right = buildColumn(state.rightMains, false);
+          const root = document.getElementById('bs-root');
+          if (!root) return;
+          const titleText = 'DÖNEM SONU BİLANÇO'+(state.rangeText || '');
+          root.innerHTML = '<div class=\"bs-title\">'+escapeHTML(titleText)+'</div><div class=\"bs-grid\"><section>'+left.html+'</section><section>'+right.html+'</section></div>';
+          updateAlert(left.total, right.total);
+        }
+
+        function updateAlert(leftTotal, rightTotal){
+          if (!slot) return;
+          const diff = leftTotal - rightTotal;
+          const absDiff = Math.abs(diff);
+          const np = state.netProfit || 0;
+          const hasNP = Math.abs(np) > TOL;
+
+          if (absDiff <= TOL){
+            slot.innerHTML = '<div class=\"bs-alert success\">bilanço eşitlendi.</div>';
+            return;
+          }
+
+          if (profitInjected){
+            slot.innerHTML = '<div class=\"bs-alert warn\">bilançoya kar zarar eklendi ancak bilanço eşit değil. Yansıtma kayıtlarını kontrol ediniz.</div>';
+            return;
+          }
+
+          const diffText = fmt(absDiff);
+          const plText = hasNP ? fmt(np) : '';
+          const ask = hasNP
+            ? 'bilanço eşit değil. fark '+diffText+' TL kar zarar tutarı olan '+plText+' TL  bilançoya eklensin mi?'
+            : 'bilanço eşit değil. fark '+diffText+' TL. Kar/Zarar raporunda net kar/zarar bulunamadı.';
+          const btn = hasNP ? '<button id=\"bs-add-pl\" class=\"bs-alert-btn\">Kar/Zarar Ekle</button>' : '';
+          slot.innerHTML = '<div class=\"bs-alert warn\">'+ask+' '+btn+'</div>';
+
+          const btnEl = document.getElementById('bs-add-pl');
+          if (btnEl){
+            btnEl.addEventListener('click', ()=>{
+              profitInjected = true;
+              applyProfit();
+            });
+          }
+        }
+
+        function applyProfit(){
+          const np = state.netProfit || 0;
+          if (Math.abs(np) <= TOL){
+            alert('Kar/Zarar raporunda net kar/zarar bulunamadı.');
+            return;
+          }
+          const gCode = '59';
+          const target = state.groups[gCode] || { sum:0, accounts:[] };
+          const filtered = (target.accounts || []).filter(a=> a.code !== '590' && a.code !== '591');
+          target.accounts = filtered;
+          target.sum = filtered.reduce((s,a)=> s + (Number(a.amount)||0), 0);
+
+          const code = np > 0 ? '590' : '591';
+          const name = (state.accNames && state.accNames[code]) || code;
+          target.accounts.push({ code, name, amount: np });
+          target.sum += np;
+          state.groups[gCode] = target;
+
+          render();
+        }
+
+        render();
+      })();
+    <\/script>
   `;
 }
 function makeStockReportHTML(opts = {}){
@@ -5708,17 +6275,18 @@ function importAccountsTSV(file){
   }
 
   // ---------- "Kalanı Dengele" (odak satır öncelikli + akıllı hedef) ----------
-  function pickPreferredAccount(rows){
-    if (LAST_USED_ACCOUNT && ACCOUNTS.some(a=>a.code===LAST_USED_ACCOUNT)) return LAST_USED_ACCOUNT;
-    for(let i=rows.length-1;i>=0;i--){
-      const acc = rows[i].children[0].querySelector('select').value;
-      if (acc) return acc;
-    }
-    const order = ['191','100','320','600','120','153','500'];
-    for(const code of order){
-      if (ACCOUNTS.some(a=>a.code===code)) return code;
-    }
-    return ACCOUNTS[0]?.code || '';
+function pickPreferredAccount(rows){
+  if (LAST_USED_ACCOUNT && ACCOUNTS.some(a=>a.code===LAST_USED_ACCOUNT)) return LAST_USED_ACCOUNT;
+  for(let i=rows.length-1;i>=0;i--){
+    const input = rows[i].children[0].querySelector('input.account-input');
+    const acc = input?.dataset.code || getAccountCodeFromInput(input) || '';
+    if (acc) return acc;
+  }
+  const order = ['191','100','320','600','120','153','500'];
+  for(const code of order){
+    if (ACCOUNTS.some(a=>a.code===code)) return code;
+  }
+  return ACCOUNTS[0]?.code || '';
   }
 
   function balanceRemaining(){
@@ -5740,35 +6308,40 @@ function importAccountsTSV(file){
     const preferredAcc = pickPreferredAccount(rows);
 
     // 1) Odak satır boşsa önce onu doldur
-    const fr = CURRENT_VOUCHER_ROW && CURRENT_VOUCHER_ROW.isConnected ? CURRENT_VOUCHER_ROW : null;
-    if (fr && fr.closest('#voucherTable tbody')){
-      const accSel = fr.children[0].querySelector('select');
-      const drEl   = fr.children[1].querySelector('input');
-      const crEl   = fr.children[2].querySelector('input');
+  const fr = CURRENT_VOUCHER_ROW && CURRENT_VOUCHER_ROW.isConnected ? CURRENT_VOUCHER_ROW : null;
+  if (fr && fr.closest('#voucherTable tbody')){
+    const accSel = fr.children[0].querySelector('input.account-input');
+    const drEl   = fr.children[1].querySelector('input');
+    const crEl   = fr.children[2].querySelector('input');
 
-      const drV = toNum(drEl.value);
-      const crV = toNum(crEl.value);
+    const drV = toNum(drEl.value);
+    const crV = toNum(crEl.value);
 
-      if (drV===0 && crV===0){
-        if (!accSel.value) accSel.value = preferredAcc;
-        if(needCredit){ crEl.value = amountStr; drEl.value = ''; }
-        else         { drEl.value = amountStr; crEl.value = ''; }
-        if (accSel.value) LAST_USED_ACCOUNT = accSel.value;
-        markDirty();
-        recalcVoucherTotals();
-        return;
-      }
-    }
+    if (drV===0 && crV===0){
+      if (!accSel.value) {
+        const chk = canPostToAccount(preferredAcc);
+        if (chk.ok) setAccountInputCode(accSel, preferredAcc);
+        else showAccSelectError(chk.reason);
+      }
+      if(needCredit){ crEl.value = amountStr; drEl.value = ''; }
+      else         { drEl.value = amountStr; crEl.value = ''; }
+      if (accSel.value) LAST_USED_ACCOUNT = accSel.dataset.code || getAccountCodeFromInput(accSel) || accSel.value;
+      markDirty();
+      recalcVoucherTotals();
+      return;
+    }
+  }
 
     // 2) Tercihli hesapla boş satır bul
     let targetRow = null;
-    for(let i=rows.length-1; i>=0; i--){
-      const r = rows[i];
-      const acc = r.children[0].querySelector('select').value;
-      const dr = toNum(r.children[1].querySelector('input').value);
-      const cr = toNum(r.children[2].querySelector('input').value);
-      if(acc === preferredAcc && dr===0 && cr===0){ targetRow = r; break; }
-    }
+  for(let i=rows.length-1; i>=0; i--){
+    const r = rows[i];
+    const accInput = r.children[0].querySelector('input.account-input');
+    const acc = accInput?.dataset.code || getAccountCodeFromInput(accInput) || '';
+    const dr = toNum(r.children[1].querySelector('input').value);
+    const cr = toNum(r.children[2].querySelector('input').value);
+    if(acc === preferredAcc && dr===0 && cr===0){ targetRow = r; break; }
+  }
 
     // 3) Yoksa yeni satır ekle (tercihli hesapla)
     if(!targetRow){
@@ -6118,8 +6691,10 @@ function applyTemplateByKey(key){
     const finish = ()=>{
       markDirty();
       recalcVoucherTotals();
-      const first = tbody.querySelector('tr:first-child select, tr:first-child input');
-      if(first){ first.focus(); }
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+      CURRENT_VOUCHER_ROW = null;
       const sel = document.getElementById('tplSelect');
       if (sel) sel.value = '';
     };
@@ -6193,12 +6768,13 @@ function applyTemplateByKey(key){
     document.getElementById('v_desc').value = kisi + ' çalışan için ücret tahakkuku';
   }
 
-  markDirty();
-  recalcVoucherTotals();
+  markDirty();
+  recalcVoucherTotals();
 
-  // İlk satırın ilk alanına odak
-  const first = tbody.querySelector('tr:first-child select, tr:first-child input');
-  if(first){ first.focus(); }
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  CURRENT_VOUCHER_ROW = null;
 
   // Seçimi sıfırla
   const sel = document.getElementById('tplSelect');
@@ -6311,20 +6887,17 @@ function populateCoaParentSelect(preferCode = ''){
   if (preferred) parentSel.value = preferred;
 }
 
-// Tüm fiş satırlarındaki hesap select'lerini yeniden oluştur (alt hesap eklendiğinde çağır)
+// Tüm fiş satırlarındaki hesap input'larını güncelle (alt hesap eklendiğinde çağır)
 function refreshAllAccountSelectElements(){
-  const options = buildAccountOptions();
-  document.querySelectorAll('#voucherTable tbody select').forEach(sel=>{
-    const prev = sel.value;
-    sel.innerHTML = '';
-    const e = document.createElement('option'); e.value=''; e.textContent='(Seçiniz)'; sel.appendChild(e);
-    options.forEach(o=>{
-      const op = document.createElement('option');
-      op.value = o.code;
-      op.textContent = o.label;
-      sel.appendChild(op);
-    });
-    sel.value = prev && options.some(x=>x.code===prev) ? prev : '';
+  refreshAccountOptionsCache();
+  document.querySelectorAll('#voucherTable tbody input.account-input').forEach(input=>{
+    const code = input.dataset.code || getAccountCodeFromInput(input);
+    if (code && isValidAccountCode(code)) {
+      setAccountInputCode(input, code);
+    } else {
+      input.value = '';
+      input.dataset.code = '';
+    }
   });
 
   // Rapor hesap select'ini de güncelle
@@ -6874,7 +7447,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
   // ---------- Enter ile ileri (Tab gibi) ----------
   function focusablesInVoucher(){
     return Array.from(document.querySelectorAll(
-      '#v_tarih, #v_fisno, #v_desc, #v_select, #voucherTable select, #voucherTable input, #v_balance, #v_save'
+      '#v_tarih, #v_fisno, #v_desc, #v_select, #voucherTable input, #v_balance, #v_save'
     )).filter(el => !el.disabled && el.offsetParent !== null);
   }
   function focusNext(current){
@@ -6883,7 +7456,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
     if (idx === list.length - 1 && current.closest('#voucherTable')){
       addVoucherRow();
       const lastRow = document.querySelector('#voucherTable tbody tr:last-child');
-      if(lastRow) lastRow.querySelector('select')?.focus();
+      if(lastRow) (lastRow.querySelector('input.account-input'))?.focus();
       return;
     }
     if (idx > -1 && idx < list.length - 1){
