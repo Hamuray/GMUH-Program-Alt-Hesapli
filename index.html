@@ -97,6 +97,74 @@
       padding:6px 10px;
     }
     .help-btn:hover{background:#dbeafe}
+    .fis-legend{
+      justify-content:space-between;
+      gap:10px;
+      width:100%;
+      padding-right:120px;
+    }
+    .legend-title{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .backup-prompt{
+      display:none;
+      border:1px solid #f59e0b;
+      border-radius:999px;
+      background:#fffbeb;
+      color:#92400e;
+      font-weight:700;
+      font-size:12px;
+      padding:5px 10px;
+      cursor:pointer;
+      box-shadow:0 0 0 0 rgba(245,158,11,0.5);
+      max-width:min(65vw, 640px);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .backup-prompt.active{display:inline-flex; align-items:center}
+    .backup-prompt.blink{animation: backupPulse 1.05s infinite}
+    .backup-prompt.status-ok{
+      border-color:#86efac;
+      background:#ecfdf5;
+      color:#166534;
+    }
+    .backup-prompt:hover{background:#fef3c7}
+    .backup-prompt.status-ok:hover{background:#dcfce7}
+    .data-legend{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      width:100%;
+    }
+    .data-legend-left{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+    }
+    .backup-data-status{
+      margin-left:auto;
+      border:1px solid #a7f3d0;
+      background:#ecfdf5;
+      color:#065f46;
+      border-radius:999px;
+      padding:4px 10px;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:min(52vw, 560px);
+    }
+    @keyframes backupPulse{
+      0%{opacity:1; transform:translateY(0)}
+      50%{opacity:.45; transform:translateY(-1px)}
+      100%{opacity:1; transform:translateY(0)}
+    }
     label{display:block; font-weight:600; margin:6px 0}
     input[type="text"],input[type="date"],select,button{border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:14px; background:white}
     button{cursor:pointer}
@@ -135,6 +203,8 @@
     }
     .row{display:flex; gap:12px; flex-wrap:wrap}
     .row > div{flex:1 1 180px}
+    .mizan-month-range{display:flex; gap:12px; flex:2 1 380px; min-width:300px}
+    .mizan-month-range > div{flex:1 1 180px}
     table{width:100%; border-collapse:collapse; margin-top:10px; background:white; border-radius:10px; overflow:hidden}
     th,td{
       border:1px solid var(--line);
@@ -827,7 +897,10 @@
     </div>
 
     <fieldset>
-      <legend>Fiş Girişi</legend>
+      <legend class="fis-legend">
+        <span class="legend-title">Fiş Girişi</span>
+        <button id="backupPrompt" class="backup-prompt" type="button">Manuel yedek almak için tıklayın</button>
+      </legend>
       <button id="helpBtn" class="help-btn" type="button" title="Yardım">Yardım</button>
       <div class="row">
         <div>
@@ -934,6 +1007,62 @@
             <label for="mzTo">Bitiş</label>
             <input type="date" id="mzTo" />
           </div>
+          <div class="mizan-month-range">
+            <div>
+              <label for="mzFromMonth">Başlangıç Ayı</label>
+              <select id="mzFromMonth">
+                <option value="">(Seçiniz)</option>
+                <option value="1">Ocak</option>
+                <option value="2">Şubat</option>
+                <option value="3">Mart</option>
+                <option value="4">Nisan</option>
+                <option value="5">Mayıs</option>
+                <option value="6">Haziran</option>
+                <option value="7">Temmuz</option>
+                <option value="8">Ağustos</option>
+                <option value="9">Eylül</option>
+                <option value="10">Ekim</option>
+                <option value="11">Kasım</option>
+                <option value="12">Aralık</option>
+              </select>
+            </div>
+            <div>
+              <label for="mzToMonth">Bitiş Ayı</label>
+              <select id="mzToMonth">
+                <option value="">(Seçiniz)</option>
+                <option value="1">Ocak</option>
+                <option value="2">Şubat</option>
+                <option value="3">Mart</option>
+                <option value="4">Nisan</option>
+                <option value="5">Mayıs</option>
+                <option value="6">Haziran</option>
+                <option value="7">Temmuz</option>
+                <option value="8">Ağustos</option>
+                <option value="9">Eylül</option>
+                <option value="10">Ekim</option>
+                <option value="11">Kasım</option>
+                <option value="12">Aralık</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="mzMonthlyRange">Aylık Mizan</label>
+            <select id="mzMonthlyRange">
+              <option value="">(Seçiniz)</option>
+              <option value="1">1 aylık</option>
+              <option value="2">1-2 aylık</option>
+              <option value="3">1-3 aylık</option>
+              <option value="4">1-4 aylık</option>
+              <option value="5">1-5 aylık</option>
+              <option value="6">1-6 aylık</option>
+              <option value="7">1-7 aylık</option>
+              <option value="8">1-8 aylık</option>
+              <option value="9">1-9 aylık</option>
+              <option value="10">1-10 aylık</option>
+              <option value="11">1-11 aylık</option>
+              <option value="12">1-12 aylık</option>
+            </select>
+          </div>
           <div>
             <label for="mizanType">Mizan Türü</label>
             <select id="mizanType">
@@ -1029,7 +1158,6 @@
             <option value="j3">Yevmiye 3 Detaylı</option>
             <option value="j4">Yevmiye 4 Ana Hesap</option>
           </select>
-          <button id="rpTrial">Mizan Raporu</button>
           <select id="rpStockPair" class="pill" title="Stok Raporu: 153/600 eşlemesi">
             <option value="">(Stok Raporu seç)</option>
             </select>
@@ -1041,7 +1169,13 @@
     </fieldset>
 
     <fieldset>
-      <legend><button class="toggle-btn" id="toggleData" aria-expanded="false" aria-controls="dataContent">[+]</button>Veri Yönetimi</legend>
+      <legend class="data-legend">
+        <span class="data-legend-left">
+          <button class="toggle-btn" id="toggleData" aria-expanded="false" aria-controls="dataContent">[+]</button>
+          <span>Veri Yönetimi</span>
+        </span>
+        <span id="backupDataStatus" class="backup-data-status">Son yedek: -</span>
+      </legend>
       <div id="dataContent" class="collapsed-content">
         <div class="toolbar">
           <button id="btnExportTSV">Fişleri Dışa Aktar (TSV)</button>
@@ -1212,6 +1346,14 @@
   // --- Kaydet mesajı kontrolü ve "dirty" takibi ---
   let FORM_DIRTY = false;
   let READONLY_MODE = false; // pasif fişte true
+  const BACKUP_LAST_AT_KEY = 'last_backup_at';
+  const BACKUP_MANUAL_REMINDER_MS = 30 * 60 * 1000;
+  const BACKUP_STATE = {
+    lastBackupAt: '',
+    userLoggedIn: false,
+    manualReminderActive: false,
+    manualReminderTimer: null
+  };
   function setSavedMessage(visible){
     const msg = document.getElementById('v_msg');
     msg.textContent = visible ? '✔ Kaydedildi' : '';
@@ -1314,6 +1456,7 @@
     showLoginError('');
     setUserInfo(code, name);
     hideLoginModal();
+    handlePostLoginBackupPrompt();
   }
   function renderReportUserBox(){
     const shortLabel = getUserShortLabel();
@@ -1339,6 +1482,130 @@
     });
 
     showLoginModal(true);
+  }
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function safeFilePart(v, fallback='x'){
+    const raw = String(v || '')
+      .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return raw || fallback;
+  }
+  function buildBackupFileName(now = new Date()){
+    const dateStr = `${now.getFullYear()}${pad2(now.getMonth()+1)}${pad2(now.getDate())}`;
+    const timeStr = `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`;
+    const codePart = safeFilePart(USER_INFO.code || 'kod', 'kod');
+    const namePart = safeFilePart(USER_INFO.name || 'kullanici', 'kullanici');
+    return `Yedek_${codePart}_${namePart}_${dateStr}_${timeStr}.tsv`;
+  }
+  function formatBackupTime(iso){
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('tr-TR', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+  function buildBackupPromptState(){
+    if (!BACKUP_STATE.userLoggedIn){
+      return { visible:false, blink:false, ok:false, text:'Manuel yedek almak için tıklayın' };
+    }
+    if (BACKUP_STATE.manualReminderActive){
+      return { visible:true, blink:true, ok:false, text:'Manuel yedek almayı unutmayınız (tıklayın).' };
+    }
+    return { visible:false, blink:false, ok:false, text:'Manuel yedek almak için tıklayın' };
+  }
+  function buildBackupDataStatusText(){
+    return `Son yedek: ${formatBackupTime(BACKUP_STATE.lastBackupAt)}`;
+  }
+  function updateBackupStatusUI(){
+    const dataStatus = document.getElementById('backupDataStatus');
+    const prompt = document.getElementById('backupPrompt');
+    if (dataStatus){
+      dataStatus.textContent = buildBackupDataStatusText();
+    }
+    if (!prompt) return;
+    const view = buildBackupPromptState();
+    prompt.textContent = view.text;
+    prompt.classList.toggle('active', !!view.visible);
+    prompt.classList.toggle('blink', !!view.blink);
+    prompt.classList.toggle('status-ok', !!view.ok);
+  }
+  function handlePostLoginBackupPrompt(){
+    BACKUP_STATE.userLoggedIn = true;
+    startManualBackupReminder();
+    updateBackupStatusUI();
+  }
+  function buildVouchersTSVContent(){
+    const headers = ['Tarih','FişNo','FişAçıklaması','HesapKodu','HesapAdı','Borç','Alacak','Miktar','Açıklama'];
+    const rows = [headers.join('\t')];
+    DB.vouchers.forEach(v=>{
+      const tarih = dmyFromISO(v.date);
+      const fisNo = v.no ?? '';
+      const fisAc = v.desc ?? '';
+      (v.lines||[]).forEach(ln=>{
+        const accMeta = getAccMeta(ln.account || '');
+        const accName = accMeta?.name || '';
+        rows.push([
+          tarih,
+          fisNo,
+          fisAc,
+          ln.account||'',
+          accName,
+          fmt(toNum(ln.debit)),
+          fmt(toNum(ln.credit)),
+          fmt(toNum(ln.quantity)),
+          ln.desc||''
+        ].join('\t'));
+      });
+    });
+    return '\uFEFF' + rows.join('\n');
+  }
+  function downloadTSV(tsvContent, fileName){
+    const blob = new Blob([tsvContent], {type:'text/tab-separated-values;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  }
+  function saveBackupMetadataAfterSuccess(){
+    BACKUP_STATE.lastBackupAt = new Date().toISOString();
+    localStorage.setItem(BACKUP_LAST_AT_KEY, BACKUP_STATE.lastBackupAt);
+    updateBackupStatusUI();
+  }
+  function manualBackupDownload(){
+    const tsv = buildVouchersTSVContent();
+    const fileName = buildBackupFileName(new Date());
+    downloadTSV(tsv, fileName);
+    BACKUP_STATE.manualReminderActive = false;
+    saveBackupMetadataAfterSuccess();
+    return true;
+  }
+  function startManualBackupReminder(){
+    if (BACKUP_STATE.manualReminderTimer) return;
+    BACKUP_STATE.manualReminderTimer = setInterval(()=>{
+      if (!BACKUP_STATE.userLoggedIn) return;
+      BACKUP_STATE.manualReminderActive = true;
+      updateBackupStatusUI();
+    }, BACKUP_MANUAL_REMINDER_MS);
+  }
+  async function handleBackupPromptClick(){
+    if (!BACKUP_STATE.userLoggedIn) return;
+    manualBackupDownload();
+    alert('Manuel yedek indirildi.');
+  }
+  function initBackupUI(){
+    BACKUP_STATE.lastBackupAt = localStorage.getItem(BACKUP_LAST_AT_KEY) || '';
+    const prompt = document.getElementById('backupPrompt');
+    if (prompt){
+      prompt.addEventListener('click', handleBackupPromptClick);
+    }
+    updateBackupStatusUI();
   }
 
   // --- Son kullanılan/odaklanan hesap ve odak satırı ---
@@ -1641,7 +1908,9 @@ function loadSubaccounts(){
   try{ SUBACCOUNTS = JSON.parse(localStorage.getItem(SUBACC_KEY)) || []; }
   catch(e){ SUBACCOUNTS = []; }
 }
-function saveSubaccounts(){ localStorage.setItem(SUBACC_KEY, JSON.stringify(SUBACCOUNTS)); }
+function saveSubaccounts(){
+  localStorage.setItem(SUBACC_KEY, JSON.stringify(SUBACCOUNTS));
+}
 
 function splitAncestors(code){
   const parts = String(code).split('.');
@@ -2148,7 +2417,9 @@ function randomIntBetween(min, max){
       }
     }catch(e){}
   }
-  function saveDB(){ localStorage.setItem(STORE_KEY, JSON.stringify({vouchers: DB.vouchers})); }
+  function saveDB(){
+    localStorage.setItem(STORE_KEY, JSON.stringify({vouchers: DB.vouchers}));
+  }
 
   // ------- Para girişi: canlı biçim (kuruş girişi için virgül desteği) -------
   function attachMoneyMask(el, peerToClear){
@@ -3023,9 +3294,44 @@ function syncReportDateRangeWithMizan(){
   if (mzTo && rpTo) rpTo.value = mzTo.value;
 }
 
+function getMizanDateRangeFromFilters(){
+  const mzFromEl = document.getElementById('mzFrom');
+  const mzToEl = document.getElementById('mzTo');
+  const mzFromMonthEl = document.getElementById('mzFromMonth');
+  const mzToMonthEl = document.getElementById('mzToMonth');
+  const mzMonthlyRangeEl = document.getElementById('mzMonthlyRange');
+
+  const currentYear = new Date().getFullYear();
+  const mkStart = (month)=> new Date(currentYear, month - 1, 1);
+  const mkEnd = (month)=> new Date(currentYear, month, 0);
+
+  const monthlyRange = parseInt(mzMonthlyRangeEl?.value || '', 10);
+  let from = null;
+  let to = null;
+
+  if (Number.isInteger(monthlyRange) && monthlyRange >= 1 && monthlyRange <= 12){
+    from = mkStart(1);
+    to = mkEnd(monthlyRange);
+    if (mzFromMonthEl) mzFromMonthEl.value = '1';
+    if (mzToMonthEl) mzToMonthEl.value = String(monthlyRange);
+  } else {
+    const fromMonth = parseInt(mzFromMonthEl?.value || '', 10);
+    const toMonth = parseInt(mzToMonthEl?.value || '', 10);
+    from = (Number.isInteger(fromMonth) && fromMonth >= 1 && fromMonth <= 12)
+      ? mkStart(fromMonth)
+      : parseDateInput(mzFromEl?.value || '');
+    to = (Number.isInteger(toMonth) && toMonth >= 1 && toMonth <= 12)
+      ? mkEnd(toMonth)
+      : parseDateInput(mzToEl?.value || '');
+  }
+
+  if (mzFromEl) mzFromEl.value = from ? ymd(from) : '';
+  if (mzToEl) mzToEl.value = to ? ymd(to) : '';
+  return { from, to };
+}
+
 function renderMizan(){
-  const from = parseDateInput(document.getElementById('mzFrom').value);
-  const to   = parseDateInput(document.getElementById('mzTo').value);
+  const { from, to } = getMizanDateRangeFromFilters();
   const mizanType = document.getElementById('mizanType').value;
 
   // 1. Doğrudan hareket olan hesapların bakiyelerini hesapla
@@ -4341,176 +4647,6 @@ function makeJournalDump4MainHTML(){
       <\/script>`;
   }
 
-function makeTrialReportHTML(){
-  const {from,to} = getReportRange();
-
-  // 1. Hesap bakiyelerini hesapla (sadece doğrudan hareket olan hesaplar)
-  const balances = {};
-
-  DB.vouchers.forEach(v => {
-    const d = parseDateInput(ymd(v.date));
-    if (from && d < from) return;
-    if (to   && d > to)   return;
-
-    (v.lines || []).forEach(ln => {
-      const code = ln.account;
-      if (!balances[code]) balances[code] = { debit: 0, credit: 0, quantity: 0 };
-      balances[code].debit += toNum(ln.debit);
-      balances[code].credit += toNum(ln.credit);
-
-      const qtyValue = toNum(ln.quantity);
-      if (qtyValue !== 0) {
-        const accMeta = getAccMeta(code);
-        const accSide = accMeta.side;
-        if (accSide === 'B') {
-          if (toNum(ln.debit) > 0) balances[code].quantity += qtyValue;
-          else if (toNum(ln.credit) > 0) balances[code].quantity -= qtyValue;
-        } else if (accSide === 'A') {
-          if (toNum(ln.credit) > 0) balances[code].quantity += qtyValue;
-          else if (toNum(ln.debit) > 0) balances[code].quantity -= qtyValue;
-        }
-      }
-    });
-  });
-
-  // 2. Görüntülenecek tüm hesapları (ebeveynler dahil) topla
-  const displayCodes = new Set();
-  Object.keys(balances).forEach(code => {
-    displayCodes.add(code);
-    splitAncestors(code).forEach(ancestor => displayCodes.add(ancestor));
-  });
-
-  const allCodes = Array.from(displayCodes);
-  const aggCache = {};
-  const getAggregated = (code) => {
-    if (aggCache[code]) return aggCache[code];
-    const direct = balances[code] || { debit: 0, credit: 0, quantity: 0 };
-    const agg = { debit: direct.debit, credit: direct.credit, quantity: direct.quantity };
-    allCodes.forEach(child => {
-      if (child !== code && child.startsWith(code + '.')) {
-        const cAgg = getAggregated(child);
-        agg.debit += cAgg.debit;
-        agg.credit += cAgg.credit;
-        agg.quantity += cAgg.quantity;
-      }
-    });
-    aggCache[code] = agg;
-    return agg;
-  };
-
-  // 3. Görüntüleme için satırları oluştur
-  const rows = [];
-  displayCodes.forEach(code => {
-    const isMain = code.split('.').length === 1;
-    const balance = isMain ? getAggregated(code) : (balances[code] || { debit: 0, credit: 0, quantity: 0 });
-    
-    const accMeta = getAccMeta(code);
-    const diff = balance.debit - balance.credit;
-    const side = diff >= 0 ? 'B' : 'A';
-    const bal = Math.abs(diff);
-    const expectedSide = accMeta.side;
-    const mismatch = expectedSide && expectedSide !== side && bal > 0;
-    const note = mismatch ? 'ters bakiye' : '';
-
-    const borcBakiye = diff >= 0 ? diff : 0;
-    const alacakBakiye = diff < 0 ? -diff : 0;
-
-    rows.push({
-      code: code,
-      name: accMeta.name,
-      expected: expectedSide,
-      debit: balance.debit,
-      credit: balance.credit,
-      quantity: balance.quantity,
-      side: side,
-      balance: bal,
-      borcBakiye: borcBakiye,
-      alacakBakiye: alacakBakiye,
-      mismatch: mismatch,
-      note: note
-    });
-  });
-
-  // 4. Kod sırasına göre sırala
-  rows.sort((a, b) => a.code.localeCompare(b.code));
-
-  // 5. Satırları render et
-  const trs = rows.map(r => {
-    const isMainAccount = r.code.split('.').length === 1;
-    let styleAttr = '';
-    
-    if (isMainAccount) {
-      styleAttr = 'style="background-color: #f3f4f6; color: #000; font-weight: 700;"';
-    } else {
-      styleAttr = 'style="background-color: #fff; color: #2563eb;"';
-    }
-
-    if (r.mismatch) {
-      styleAttr = 'style="background-color: #fce7f3;"';
-    }
-
-    return `<tr class="${r.mismatch ? 'warn' : ''}" ${styleAttr}>
-      <td>${escapeHTML(r.code)}</td>
-      <td>${escapeHTML(r.name)}</td>
-      <td class="right">${fmtNoZero(r.debit)}</td>
-      <td class="right">${fmtNoZero(r.credit)}</td>
-      <td class="right">${fmtNoZero(r.borcBakiye)}</td>
-      <td class="right">${fmtNoZero(r.alacakBakiye)}</td>
-      <td>${r.side}</td>
-      <td class="right">${fmtNoZero(r.quantity)}</td>
-      <td>${escapeHTML(r.note)}</td>
-    </tr>`;
-  }).join('');
-
-  // 6. Genel toplamları SADECE ana hesapların toplamlarından hesapla
-  let totalDebit = 0, totalCredit = 0, totalBorcBakiye = 0, totalAlacakBakiye = 0, totalQuantity = 0;
-  allCodes
-    .filter(code => code.split('.').length === 1)
-    .forEach(code => {
-      const agg = getAggregated(code);
-      totalDebit += agg.debit;
-      totalCredit += agg.credit;
-      const diff = agg.debit - agg.credit;
-      if (diff >= 0) {
-        totalBorcBakiye += diff;
-      } else {
-        totalAlacakBakiye -= diff;
-      }
-      totalQuantity += agg.quantity;
-    });
-
-  // 7. Rapor tablosunu oluştur
-  return `
-    <table>
-      <thead>
-        <tr>
-          <th style="width:120px">Hesap Kodu</th>
-          <th style="width:250px">Hesap Adı</th>
-          <th class="right" style="width:110px">Toplam Borç</th>
-          <th class="right" style="width:110px">Toplam Alacak</th>
-          <th class="right" style="width:110px">Borç Bakiye</th>
-          <th class="right" style="width:110px">Alacak Bakiye</th>
-          <th style="width:60px">Taraf</th>
-          <th class="right" style="width:100px">Miktar</th>
-          <th style="width:120px">Not</th>
-        </tr>
-      </thead>
-      <tbody>${trs || '<tr><td colspan="9">Kayıt bulunamadı.</td></tr>'}</tbody>
-      <tfoot>
-        <tr>
-          <th colspan="2" class="right">GENEL TOPLAM</th>
-          <th class="right">${fmtNoZero(totalDebit)}</th>
-          <th class="right">${fmtNoZero(totalCredit)}</th>
-          <th class="right">${fmtNoZero(totalBorcBakiye)}</th>
-          <th class="right">${fmtNoZero(totalAlacakBakiye)}</th>
-          <th></th>
-          <th class="right">${fmtNoZero(totalQuantity)}</th>
-          <th></th>
-        </tr>
-      </tfoot>
-    </table>`;
-}
-
 function makeIncomeReportHTML(){
   // Tarih aralığı
   const {from, to} = getReportRange();
@@ -4691,7 +4827,10 @@ function makeIncomeReportHTML(){
 }
 
 function makeBalanceSheetReportHTML(){
-  const {from, to} = getReportRange();
+  // Bu raporda varsayılan davranış: tüm veriler.
+  // Aylık seçim raporun kendi içindeki dropdown'dan yapılır.
+  const from = null;
+  const to = null;
 
   // Başlık adları
   const NAMES = {
@@ -4812,6 +4951,13 @@ function makeBalanceSheetReportHTML(){
   accNames['590'] = accNames['590'] || getAccName('590') || '';
   accNames['591'] = accNames['591'] || getAccName('591') || '';
 
+  const allAccNames = {};
+  ACCOUNTS.forEach(acc => { allAccNames[String(acc.code)] = String(acc.name || ''); });
+  SUBACCOUNTS.forEach(acc => { allAccNames[String(acc.code)] = String(acc.name || ''); });
+  const mainCodes15 = ACCOUNTS
+    .map(acc => String(acc.code))
+    .filter(code => /^[1-5]\d{2}$/.test(code));
+
   // Tarih aralığı başlık metni
   const toDMY = d => d ? dmyFromISO(ymd(d)) : '';
   const rangeText = (from||to) ? ` (${toDMY(from)} – ${toDMY(to)})` : '';
@@ -4824,13 +4970,19 @@ function makeBalanceSheetReportHTML(){
     groups: byGroup,
     netProfit: computedNetProfit,
     accNames,
-    rangeText
+    rangeText,
+    sourceVouchers: DB.vouchers || [],
+    allAccNames,
+    mainCodes15
   };
 
   // 5) Stil ve çıktı
   const style = `
   <style>
     .bs-title{ background:#0f766e; color:#fff; text-align:center; padding:10px 14px; border-radius:8px; font-weight:800; letter-spacing:.5px; margin:0 0 10px 0; font-size:20px;}
+    .bs-controls{display:flex; align-items:center; gap:10px; margin:0 0 10px 0; flex-wrap:wrap;}
+    .bs-controls label{font-weight:700; color:#374151;}
+    .bs-select{padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#111827;}
     .bs-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
     table.bs-col{ width:100%; border-collapse:collapse; table-layout:fixed; }
     table.bs-col td{ border:1px solid #e5e7eb; padding:6px 8px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -4853,6 +5005,24 @@ function makeBalanceSheetReportHTML(){
 
   return `
     ${style}
+    <div class="bs-controls">
+      <label for="bs-monthly-range">Aylık Bilanço</label>
+      <select id="bs-monthly-range" class="bs-select">
+        <option value="">(Tüm Veriler)</option>
+        <option value="1">1 aylık</option>
+        <option value="2">1-2 aylık</option>
+        <option value="3">1-3 aylık</option>
+        <option value="4">1-4 aylık</option>
+        <option value="5">1-5 aylık</option>
+        <option value="6">1-6 aylık</option>
+        <option value="7">1-7 aylık</option>
+        <option value="8">1-8 aylık</option>
+        <option value="9">1-9 aylık</option>
+        <option value="10">1-10 aylık</option>
+        <option value="11">1-11 aylık</option>
+        <option value="12">1-12 aylık</option>
+      </select>
+    </div>
     <div id="bs-alert-slot" aria-live="polite"></div>
     <div id="bs-root"></div>
     <script>
@@ -4867,14 +5037,136 @@ function makeBalanceSheetReportHTML(){
         };
         const escapeHTML = (s)=> String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');
         const clone = (obj)=> JSON.parse(JSON.stringify(obj));
+        const num = (n)=> {
+          const v = Number(n);
+          return isFinite(v) ? v : 0;
+        };
+        const parseISO = (iso)=>{
+          if (iso instanceof Date && !isNaN(iso)) {
+            return new Date(iso.getFullYear(), iso.getMonth(), iso.getDate());
+          }
+          const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(String(iso||''));
+          if (!m) return null;
+          return new Date(+m[1], +m[2]-1, +m[3]);
+        };
+        const toDMYDate = (d)=>{
+          if (!d) return '';
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yy = d.getFullYear();
+          return dd + '.' + mm + '.' + yy;
+        };
 
         let state = clone(DATA);
+        const source = {
+          vouchers: Array.isArray(state.sourceVouchers) ? state.sourceVouchers : [],
+          allAccNames: state.allAccNames || {},
+          mainCodes15: Array.isArray(state.mainCodes15) ? state.mainCodes15 : []
+        };
+        delete state.sourceVouchers;
+        delete state.allAccNames;
+        delete state.mainCodes15;
+
         let profitInjected = false;
+        const currentYear = new Date().getFullYear();
+        const monthlySelect = document.getElementById('bs-monthly-range');
 
         const slot = document.getElementById('bs-alert-slot');
         const toolbar = document.querySelector('.toolbar');
         if (toolbar && slot){
           toolbar.insertAdjacentElement('afterend', slot);
+        }
+
+        const inRangeVoucher = (v, fromDate, toDate)=>{
+          const d = parseISO(v?.date);
+          if (!d) return false;
+          if (fromDate && d < fromDate) return false;
+          if (toDate && d > toDate) return false;
+          return true;
+        };
+
+        function computeBalanceData(fromDate, toDate){
+          const allTotals = {};
+          source.vouchers.forEach(v=>{
+            if(!inRangeVoucher(v, fromDate, toDate)) return;
+            (v.lines||[]).forEach(ln=>{
+              const code = String(ln.account||'').trim();
+              const rootCode = code.slice(0,3);
+              if(!/^[1-5][0-9]{2}$/.test(rootCode)) return;
+              if(!allTotals[code]) allTotals[code] = {db:0, cr:0};
+              allTotals[code].db += num(ln.debit);
+              allTotals[code].cr += num(ln.credit);
+            });
+          });
+
+          const mainAccountTotals = {};
+          const mainCodes = source.mainCodes15.length
+            ? source.mainCodes15
+            : Object.keys(source.allAccNames).filter(code => /^[1-5][0-9]{2}$/.test(code));
+          mainCodes.forEach(code => { mainAccountTotals[code] = {db:0, cr:0}; });
+
+          Object.keys(allTotals).forEach(code => {
+            const rootCode = code.slice(0,3);
+            if(/^[1-5][0-9]{2}$/.test(rootCode)) {
+              if(!mainAccountTotals[rootCode]) mainAccountTotals[rootCode] = {db:0, cr:0};
+              mainAccountTotals[rootCode].db += allTotals[code].db;
+              mainAccountTotals[rootCode].cr += allTotals[code].cr;
+            }
+          });
+
+          const byGroup = {};
+          Object.keys(mainAccountTotals).forEach(code=>{
+            const diff = mainAccountTotals[code].db - mainAccountTotals[code].cr;
+            const amount = (code[0]==='1' || code[0]==='2') ? diff : -diff;
+            if(Math.abs(amount) < TOL) return;
+            const g = code.slice(0,2);
+            if(!byGroup[g]) byGroup[g] = {sum:0, accounts:[]};
+            byGroup[g].accounts.push({code, name: source.allAccNames[code] || '', amount});
+            byGroup[g].sum += amount;
+          });
+
+          const net6 = {};
+          source.vouchers.forEach(v=>{
+            if(!inRangeVoucher(v, fromDate, toDate)) return;
+            (v.lines||[]).forEach(ln=>{
+              const code = String(ln.account||'').trim();
+              if(!/^6[0-9]{2}$/.test(code)) return;
+              if(!net6[code]) net6[code] = 0;
+              net6[code] += num(ln.credit) - num(ln.debit);
+            });
+          });
+
+          const used6 = Object.keys(net6).some(k=> Math.abs(net6[k]) > TOL);
+          const SUM = list => list.reduce((s,c)=> s + (net6[c]||0), 0);
+          const NET_SALES = SUM(['600','601','602','610','611','612']);
+          const COSTS     = SUM(['620','621','622','623']);
+          const GROSS     = NET_SALES + COSTS;
+          const OPEX      = SUM(['630','631','632']);
+          const OPER      = GROSS + OPEX;
+          const OTHER_INC = SUM(['640','641','642','643','644','645','646','647','649']);
+          const OTHER_EXP = SUM(['653','654','655','656','657','659','660','661']);
+          const ORDINARY  = OPER + OTHER_INC + OTHER_EXP;
+          const EXTRA_INC = SUM(['671','679']);
+          const EXTRA_EXP = SUM(['680','681','689']);
+          const PERIOD    = ORDINARY + EXTRA_INC + EXTRA_EXP;
+          const TAX_691   = net6['691'] || 0;
+          const NET_PROFIT = PERIOD + TAX_691;
+          const computedNetProfit = (used6 && Math.abs(NET_PROFIT) > TOL) ? NET_PROFIT : 0;
+
+          const accNames = {};
+          Object.keys(byGroup).forEach(g=>{
+            (byGroup[g].accounts||[]).forEach(a=>{
+              accNames[a.code] = a.name || '';
+            });
+          });
+          accNames['590'] = accNames['590'] || source.allAccNames['590'] || '';
+          accNames['591'] = accNames['591'] || source.allAccNames['591'] || '';
+
+          const rangeText = (fromDate || toDate)
+            ? ' (' + toDMYDate(fromDate) + ' – ' + toDMYDate(toDate) + ')'
+            : '';
+
+          return { groups: byGroup, netProfit: computedNetProfit, accNames, rangeText };
         }
 
         function buildColumn(mainList, isLeft){
@@ -4990,7 +5282,28 @@ function makeBalanceSheetReportHTML(){
           render();
         }
 
-        render();
+        function applyMonthlyRange(){
+          const months = parseInt(monthlySelect?.value || '', 10);
+          let fromDate = null;
+          let toDate = null;
+          if (Number.isInteger(months) && months >= 1 && months <= 12){
+            fromDate = new Date(currentYear, 0, 1);
+            toDate = new Date(currentYear, months, 0);
+          }
+          const computed = computeBalanceData(fromDate, toDate);
+          state.groups = computed.groups;
+          state.netProfit = computed.netProfit;
+          state.accNames = computed.accNames;
+          state.rangeText = computed.rangeText;
+          profitInjected = false;
+          render();
+        }
+
+        if (monthlySelect){
+          monthlySelect.addEventListener('change', applyMonthlyRange);
+        }
+
+        applyMonthlyRange();
       })();
     <\/script>
   `;
@@ -5662,14 +5975,6 @@ function makeVoucherMainHTML(voucher){
     });
   }
 
-  // --- Mizan ---
-  const btnTrial = document.getElementById('rpTrial');
-  if (btnTrial){
-    btnTrial.addEventListener('click', ()=>{
-      openReportInNewTab('Mizan Raporu', makeTrialReportHTML());
-    });
-  }
-
   // --- Fiş Baskısı ---
   const voucherPrintSelect = document.getElementById('voucherPrintSelect');
   if (voucherPrintSelect){
@@ -5789,42 +6094,11 @@ function makeVoucherMainHTML(voucher){
 
   // ---------- Veri Yönetimi ----------
   function exportTSV(){
-    const headers = ['Tarih','FişNo','FişAçıklaması','HesapKodu','HesapAdı','Borç','Alacak','Miktar','Açıklama'];
-    const rows = [headers.join('\t')];
-    DB.vouchers.forEach(v=>{
-      const tarih = dmyFromISO(v.date);
-      const fisNo = v.no ?? '';
-      const fisAc = v.desc ?? '';
-      (v.lines||[]).forEach(ln=>{
-        const accMeta = getAccMeta(ln.account || '');
-        const accName = accMeta?.name || '';
-        rows.push([
-          tarih,
-          fisNo,
-          fisAc,
-          ln.account||'',
-          accName,
-          fmt(toNum(ln.debit)),
-          fmt(toNum(ln.credit)),
-          fmt(toNum(ln.quantity)),
-          ln.desc||''
-        ].join('\t'));
-      });
-    });
-    const tsv = '\uFEFF' + rows.join('\n');
-    const blob = new Blob([tsv], {type:'text/tab-separated-values;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-
-    const now = new Date();
-    const pad = (n)=> String(n).padStart(2,'0');
-    const dateStr = `${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear()}`;
-    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const codePart = (USER_INFO.code || 'kod').replace(/[^a-z0-9]/gi,'') || 'kod';
-    const nameSlug = (slugTR(USER_INFO.name || '') || 'kullanici').replace(/\s+/g,'_');
-    a.download = `Yedek_${codePart}_${nameSlug}_${dateStr}_${timeStr}.tsv`;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    const tsv = buildVouchersTSVContent();
+    const fileName = buildBackupFileName(new Date());
+    downloadTSV(tsv, fileName);
+    BACKUP_STATE.manualReminderActive = false;
+    saveBackupMetadataAfterSuccess();
   }
 
   function importVouchersTSV(file){
@@ -7521,7 +7795,9 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
   // ---------- Sayfadan ayrılma uyarısı (dirty ise) ----------
   window.addEventListener('beforeunload', (e)=>{
-    if (FORM_DIRTY) { e.preventDefault(); e.returnValue = ''; }
+    if (!BACKUP_STATE.userLoggedIn) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
 
   // ---------- Açılır-kapanır işlevi ----------
@@ -7555,6 +7831,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
   // ---------- Başlat ----------
   window.addEventListener('load', ()=>{
+    initBackupUI();
     initUserLoginUI();
     loadDB();
 
@@ -7635,8 +7912,31 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
     setupCollapsible('toggleAlerts', 'alertsContent');
     
     // Mizan seçimlerinde otomatik yükleme
-    document.getElementById('mzFrom').addEventListener('change', renderMizan);
-    document.getElementById('mzTo').addEventListener('change', renderMizan);
+    document.getElementById('mzFrom').addEventListener('change', ()=>{
+      const mzMonthlyRange = document.getElementById('mzMonthlyRange');
+      const mzFromMonth = document.getElementById('mzFromMonth');
+      if (mzMonthlyRange) mzMonthlyRange.value = '';
+      if (mzFromMonth) mzFromMonth.value = '';
+      renderMizan();
+    });
+    document.getElementById('mzTo').addEventListener('change', ()=>{
+      const mzMonthlyRange = document.getElementById('mzMonthlyRange');
+      const mzToMonth = document.getElementById('mzToMonth');
+      if (mzMonthlyRange) mzMonthlyRange.value = '';
+      if (mzToMonth) mzToMonth.value = '';
+      renderMizan();
+    });
+    document.getElementById('mzFromMonth').addEventListener('change', ()=>{
+      const mzMonthlyRange = document.getElementById('mzMonthlyRange');
+      if (mzMonthlyRange) mzMonthlyRange.value = '';
+      renderMizan();
+    });
+    document.getElementById('mzToMonth').addEventListener('change', ()=>{
+      const mzMonthlyRange = document.getElementById('mzMonthlyRange');
+      if (mzMonthlyRange) mzMonthlyRange.value = '';
+      renderMizan();
+    });
+    document.getElementById('mzMonthlyRange').addEventListener('change', renderMizan);
     document.getElementById('mizanType').addEventListener('change', renderMizan);
 
     // Raporlar (yeni sekme)
