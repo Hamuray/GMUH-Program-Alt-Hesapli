@@ -988,6 +988,7 @@
             <option value="banka2kasa">Bankadan Kasaya</option>
             <option value="smm">Satılan Mal Maliyeti</option>
             <option value="ucretTahakkuk">Ücret Tahakkuku Asgari Ücret</option>
+            <option value="kdvKahsup">KDV Kahsup</option>
             <option value="yansitma">Yansıtma Kaydı</option>
           </select>
         </div>
@@ -2270,6 +2271,77 @@ function startMissingSubaccountFlow(code, inputEl){
       });
     });
     return { debit, credit };
+  }
+
+  function collectAccountFamilyBalances(code){
+    const root = String(code || '');
+    const prefix = root + '.';
+    const totals = new Map();
+
+    (DB.vouchers || []).forEach(v=>{
+      (v.lines || []).forEach(ln=>{
+        const acc = String(ln.account || '');
+        if (!acc) return;
+        if (!(acc === root || acc.startsWith(prefix))) return;
+        const prev = totals.get(acc) || { debit: 0, credit: 0 };
+        prev.debit += toNum(ln.debit);
+        prev.credit += toNum(ln.credit);
+        totals.set(acc, prev);
+      });
+    });
+
+    return Array.from(totals.entries())
+      .map(([account, t])=>({ account, debit: t.debit, credit: t.credit, balance: t.debit - t.credit }))
+      .sort((a,b)=> String(a.account).localeCompare(String(b.account), 'tr'));
+  }
+
+  function collectFamilyKnownCodes(rootCode){
+    const root = String(rootCode || '');
+    const prefix = root + '.';
+    const codes = new Set();
+
+    if (accountExistsInPlan(root)) codes.add(root);
+
+    (SUBACCOUNTS || []).forEach(sa=>{
+      const code = String(sa.code || '');
+      if (code.startsWith(prefix)) codes.add(code);
+    });
+
+    (DB.vouchers || []).forEach(v=>{
+      (v.lines || []).forEach(ln=>{
+        const code = String(ln.account || '');
+        if (code === root || code.startsWith(prefix)) codes.add(code);
+      });
+    });
+
+    return Array.from(codes).sort((a,b)=> String(a).localeCompare(String(b), 'tr'));
+  }
+
+  function pickPostableAccountForFamily(rootCode, preferredCodes = []){
+    const root = String(rootCode || '');
+    const prefix = root + '.';
+    const candidates = [];
+
+    const pushCandidate = (rawCode)=>{
+      const code = String(rawCode || '').trim();
+      if (!code) return;
+      if (!(code === root || code.startsWith(prefix))) return;
+      candidates.push(code);
+    };
+
+    preferredCodes.forEach(pushCandidate);
+    pushCandidate(root);
+    collectFamilyKnownCodes(root).forEach(pushCandidate);
+
+    const seen = new Set();
+    for (const code of candidates){
+      if (seen.has(code)) continue;
+      seen.add(code);
+      if (!accountExistsInPlan(code)) continue;
+      const postingCheck = canPostToAccount(code);
+      if (postingCheck.ok) return code;
+    }
+    return '';
   }
 </script>
 
@@ -6960,6 +7032,62 @@ function applyTemplateByKey(key){
 
     document.getElementById('v_desc').value = 'Bankadan Kasaya';
   }
+  else if (key === 'kdvKahsup'){
+    const EPS = 0.005;
+    const round2 = (val) => Math.round((Number(val) + Number.EPSILON) * 100) / 100;
+    const lines = [];
+
+    ['391', '191', '190'].forEach(root=>{
+      const balances = collectAccountFamilyBalances(root);
+      balances.forEach(item=>{
+        const net = round2(item.balance);
+        if (Math.abs(net) < EPS) return;
+        const amount = round2(Math.abs(net));
+        if (net > 0){
+          lines.push({ account: item.account, credit: amount, desc: `KDV Kahsup ${item.account} ters kayıt` });
+        } else {
+          lines.push({ account: item.account, debit: amount, desc: `KDV Kahsup ${item.account} ters kayıt` });
+        }
+      });
+    });
+
+    let td = lines.reduce((sum, line)=> sum + toNum(line.debit), 0);
+    let tc = lines.reduce((sum, line)=> sum + toNum(line.credit), 0);
+
+    if (Math.abs(td - tc) > EPS){
+      const diff = round2(Math.abs(td - tc));
+      if (td > tc){
+        const acc360 = pickPostableAccountForFamily('360');
+        if (!acc360){
+          alert('KDV Kahsup için 360 hesap ailesinde uygun kayıt hesabı bulunamadı.');
+          document.getElementById('tplSelect').value = '';
+          return;
+        }
+        lines.push({ account: acc360, credit: diff, desc: 'KDV Kahsup fark dengeleme (360)' });
+      } else {
+        const preferred190 = lines
+          .map(line=>String(line.account || ''))
+          .filter(code=> code === '190' || code.startsWith('190.'));
+        const acc190 = pickPostableAccountForFamily('190', preferred190);
+        if (!acc190){
+          alert('KDV Kahsup için 190 hesap ailesinde uygun kayıt hesabı bulunamadı.');
+          document.getElementById('tplSelect').value = '';
+          return;
+        }
+        lines.push({ account: acc190, debit: diff, desc: 'KDV Kahsup fark dengeleme (190)' });
+      }
+    }
+
+    const finalLines = lines.filter(line => toNum(line.debit) > 0 || toNum(line.credit) > 0);
+    if (finalLines.length < 2){
+      alert('KDV Kahsup için kapatılacak bakiye bulunamadı.');
+      document.getElementById('tplSelect').value = '';
+      return;
+    }
+
+    finalLines.forEach(line=> addVoucherRow(line));
+    document.getElementById('v_desc').value = 'KDV Kahsup';
+  }
   else if (key === 'smm'){
     const stocks = collectSmmStockAccounts();
     const finish = ()=>{
