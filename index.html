@@ -913,7 +913,9 @@
         </div>
         <div style="flex:2">
           <label for="v_desc">Fiş Açıklaması</label>
-          <input type="text" id="v_desc" placeholder="Fiş açıklaması (opsiyonel)" maxlength="50" />
+          <input type="text" id="v_desc" placeholder="Fiş açıklaması (satırlara otomatik kopyalanır)" maxlength="50"
+                 oninput="mirrorVoucherDescToLineDescriptions(this.value)"
+                 onchange="mirrorVoucherDescToLineDescriptions(this.value)" />
         </div>
       </div>
 
@@ -2797,7 +2799,13 @@ function makeAccSelect(){
   const tdDc = document.createElement('td');
   const dc = document.createElement('input');
   dc.type = 'text'; dc.placeholder = 'Açıklama';
-  dc.value = pref.desc ?? pref.aciklama ?? '';
+  const hasLineDesc =
+    Object.prototype.hasOwnProperty.call(pref, 'desc') ||
+    Object.prototype.hasOwnProperty.call(pref, 'aciklama');
+  const voucherDesc = (document.getElementById('v_desc')?.value || '').trim();
+  dc.value = hasLineDesc
+    ? (pref.desc ?? pref.aciklama ?? '')
+    : (voucherDesc || '');
   dc.maxLength = 50;
   tdDc.appendChild(dc);
 
@@ -2841,7 +2849,8 @@ function makeAccSelect(){
   btnAdd.classList.add('btn-mini-add');    // küçük buton stili (CSS’te tanımladık)
   btnAdd.title = 'Bu satırın altına yeni satır ekle';
   btnAdd.addEventListener('click', ()=>{
-    const newTr = addVoucherRow({}, tr); // bu satırın altına
+    const topDesc = (document.getElementById('v_desc')?.value || '').trim();
+    const newTr = addVoucherRow(topDesc ? { desc: topDesc } : {}, tr); // bu satırın altına
     const target = newTr.querySelector('input.account-input');
     target?.focus();
     markDirty(); recalcVoucherTotals();
@@ -2879,6 +2888,27 @@ function makeAccSelect(){
   recalcVoucherTotals();
   return tr;
 }
+
+function mirrorVoucherDescToLineDescriptions(descText){
+  // Sadece yeni fiş girişinde üst açıklamayı satırlara yansıt.
+  if (CURRENT_VOUCHER_ORIGINAL_KEY) return;
+  const text = (descText ?? '').toString().trim();
+  document.querySelectorAll('#voucherTable tbody tr').forEach((r)=>{
+    const lineDescInput = r.children[4]?.querySelector('input');
+    if (lineDescInput) lineDescInput.value = text;
+  });
+}
+
+document.addEventListener('input', (e)=>{
+  if (e.target && e.target.id === 'v_desc'){
+    mirrorVoucherDescToLineDescriptions(e.target.value);
+  }
+});
+document.addEventListener('change', (e)=>{
+  if (e.target && e.target.id === 'v_desc'){
+    mirrorVoucherDescToLineDescriptions(e.target.value);
+  }
+});
 
   function collectVoucher(){
     const date=document.getElementById('v_tarih').value;
@@ -7126,6 +7156,7 @@ function applyTemplateByKey(key){
       addVoucherRow({ account: stockCode, credit: amount, quantity: soldQty, desc });
 
       document.getElementById('v_desc').value = desc;
+      mirrorVoucherDescToLineDescriptions(desc);
       finish();
     });
     return;
@@ -7170,6 +7201,7 @@ function applyTemplateByKey(key){
     document.getElementById('v_desc').value = kisi + ' çalışan için ücret tahakkuku';
   }
 
+  mirrorVoucherDescToLineDescriptions(document.getElementById('v_desc')?.value || '');
   markDirty();
   recalcVoucherTotals();
 
@@ -8006,6 +8038,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
           elNo.value = nextNo;
         }
         if (elDesc) elDesc.value = tpl.description;
+        mirrorVoucherDescToLineDescriptions(tpl.description);
         if (typeof setVoucherEditable === 'function') setVoucherEditable(true);
         if (typeof recalcVoucherTotals === 'function') recalcVoucherTotals();
         if (typeof markDirty === 'function') markDirty();
@@ -8086,7 +8119,14 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
     // Üst alanlar "dirty"
     document.getElementById('v_tarih').addEventListener('change', markDirty);
-    document.getElementById('v_desc').addEventListener('input', markDirty);
+    document.getElementById('v_desc').addEventListener('input', (e)=>{
+      mirrorVoucherDescToLineDescriptions(e.target.value);
+      markDirty();
+    });
+    document.getElementById('v_desc').addEventListener('change', (e)=>{
+      mirrorVoucherDescToLineDescriptions(e.target.value);
+      markDirty();
+    });
     
     document.getElementById('v_prev').addEventListener('click', ()=> navigateVoucher('prev')); // AŞAĞI (daha eski)
     document.getElementById('v_next').addEventListener('click', ()=> navigateVoucher('next')); // YUKARI (daha yeni)
