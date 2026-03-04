@@ -170,6 +170,14 @@
     button{cursor:pointer}
     button.primary{background:var(--brand); color:#fff; border-color:#0b1c33; box-shadow:0 1px 0 rgba(0,0,0,.08)}
     button.primary:hover{background:#233f6b}
+    #voucherListSortBtn{
+      background:#dbeafe;
+      border-color:#93c5fd;
+      color:#1e3a8a;
+    }
+    #voucherListSortBtn:hover{
+      background:#bfdbfe;
+    }
     button:disabled{opacity:.55; cursor:not-allowed}
     #voucherTotalsRow th,
     #v_save{
@@ -197,12 +205,18 @@
       color:#064e4e;
       box-shadow:0 1px 0 rgba(6,95,70,.2);
     }
+    .shortcut-hint{ display:inline-block; }
+    #v_save:disabled{ pointer-events:none; }
     #v_save.status-warn:disabled,
     #v_save.status-ok:disabled{
       opacity:1;
     }
     .row{display:flex; gap:12px; flex-wrap:wrap}
     .row > div{flex:1 1 180px}
+    #voucherListTable tbody tr[data-voucher-key]{ cursor:pointer; }
+    #voucherListTable tbody tr[data-voucher-key]:hover{
+      background:#dbeafe;
+    }
     .mizan-month-range{display:flex; gap:12px; flex:2 1 380px; min-width:300px}
     .mizan-month-range > div{flex:1 1 180px}
     table{width:100%; border-collapse:collapse; margin-top:10px; background:white; border-radius:10px; overflow:hidden}
@@ -965,8 +979,8 @@
       <div class="toolbar" style="margin-top:8px; display:flex; justify-content:space-between; gap:8px">
 
         <div style="display:flex; gap:8px">
-          <button id="v_balance">Fişi Dengele</button>
-          <button id="v_save" class="primary" disabled>Kaydet</button>
+          <button id="v_balance" title="Kısayol: Ctrl+Enter">Fişi Dengele</button>
+          <span class="shortcut-hint" title="Kısayol: Ctrl+S"><button id="v_save" class="primary" title="Kısayol: Ctrl+S" disabled>Kaydet</button></span>
           <select id="voucherPrintSelect" title="Fiş Yazdır">
             <option value="">Fiş Yazdır</option>
             <option value="detailed">Detaylı Fiş</option>
@@ -1336,6 +1350,7 @@
       </table>
     </div>
     <div class="modal-foot">
+      <button id="voucherListSortBtn">Fişleri Sırala</button>
       <button id="voucherListSelectBtn" class="primary">Fişe Git</button>
     </div>
   </div>
@@ -2482,12 +2497,52 @@ function randomIntBetween(min, max){
   return getAccMeta(String(code)).name || '';
 }
 
+  function toVoucherNoNum(no){
+    return parseInt(String(no ?? '').replace(/[^0-9]/g,''),10) || 0;
+  }
+
+  function ensureVoucherCreatedAt(){
+    if (!Array.isArray(DB.vouchers) || DB.vouchers.length === 0) return false;
+    let changed = false;
+    const missingByDate = new Map();
+
+    DB.vouchers.forEach((v, idx)=>{
+      if (!v || typeof v !== 'object') return;
+      const raw = v.createdAt;
+      const parsed = Date.parse(String(raw || ''));
+      if (!Number.isNaN(parsed)){
+        const iso = new Date(parsed).toISOString();
+        if (v.createdAt !== iso){
+          v.createdAt = iso;
+          changed = true;
+        }
+        return;
+      }
+      const d = ymd(v.date) || ymd(new Date());
+      if (!missingByDate.has(d)) missingByDate.set(d, []);
+      missingByDate.get(d).push({ v, idx, noNum: toVoucherNoNum(v.no) });
+    });
+
+    missingByDate.forEach((entries, dateIso)=>{
+      entries.sort((a,b)=> a.noNum - b.noNum || a.idx - b.idx);
+      const baseMs = Date.parse(`${dateIso}T00:00:00.000Z`);
+      entries.forEach((entry, orderIdx)=>{
+        const ts = Number.isNaN(baseMs) ? (Date.now() + entry.idx) : (baseMs + orderIdx);
+        entry.v.createdAt = new Date(ts).toISOString();
+        changed = true;
+      });
+    });
+
+    return changed;
+  }
+
   function loadDB(){
     try{
       const s=localStorage.getItem(STORE_KEY);
       if(s){
         const data=JSON.parse(s)||{};
         if(Array.isArray(data.vouchers)) DB.vouchers = data.vouchers;
+        if (ensureVoucherCreatedAt()) saveDB();
       }
     }catch(e){}
   }
@@ -2611,11 +2666,19 @@ function makeAccSelect(){
     const activeEl = list.children[idx];
     if (activeEl) activeEl.scrollIntoView({ block:'nearest' });
   };
+  const focusNextVoucherField = ()=>{
+    const tr = input.closest('tr');
+    const nextInput = tr?.children?.[1]?.querySelector('input');
+    if (nextInput && !nextInput.disabled){
+      nextInput.focus();
+      nextInput.select?.();
+    }
+  };
   const selectByCode = (code)=>{
     const chk = canPostToAccount(code);
     if (!chk.ok){
       showAccSelectError(chk.reason);
-      return;
+      return false;
     }
     state.suppressBlur = true;
     setAccountInputCode(input, code);
@@ -2627,6 +2690,7 @@ function makeAccSelect(){
     markDirty();
     recalcVoucherTotals();
     setTimeout(()=>{ state.suppressBlur = false; }, 0);
+    return true;
   };
 
   input.addEventListener('focus', ()=>{
@@ -2664,7 +2728,7 @@ function makeAccSelect(){
   });
 
   input.addEventListener('keydown', (e)=>{
-    if (e.key === 'ArrowDown'){
+    if (e.key === 'ArrowDown' && !e.ctrlKey && !e.metaKey){
       if (!list.classList.contains('open')){
         renderAccountDropdownList(list, input.value, state, input);
         showList();
@@ -2675,7 +2739,7 @@ function makeAccSelect(){
       e.stopPropagation();
       return;
     }
-    if (e.key === 'ArrowUp'){
+    if (e.key === 'ArrowUp' && !e.ctrlKey && !e.metaKey){
       if (!list.classList.contains('open')){
         renderAccountDropdownList(list, input.value, state, input);
         showList();
@@ -2686,7 +2750,7 @@ function makeAccSelect(){
       e.stopPropagation();
       return;
     }
-    if (e.key === 'Enter'){
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey){
       const rawCode = String(input.value || '').trim();
       const newSubMatch = rawCode.match(/^(\d{3}(?:\.\d{2})+)$/);
       const newSubCode = newSubMatch ? newSubMatch[1] : '';
@@ -2696,16 +2760,20 @@ function makeAccSelect(){
         startMissingSubaccountFlow(newSubCode, input);
         return;
       }
+      let moved = false;
       if (list.classList.contains('open') && state.items[state.activeIndex]){
-        selectByCode(state.items[state.activeIndex].code);
+        moved = selectByCode(state.items[state.activeIndex].code);
       } else {
         const code = getAccountCodeFromInput(input);
         if (code){
-          selectByCode(code);
+          moved = selectByCode(code);
         } else if (input.dataset.prevCode){
           setAccountInputCode(input, input.dataset.prevCode);
+          moved = true;
         }
       }
+      hideList();
+      if (moved) focusNextVoucherField();
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -2717,14 +2785,29 @@ function makeAccSelect(){
       e.stopPropagation();
       return;
     }
-    if (e.key === 'Tab'){
+    if (e.key === 'Tab' && !e.shiftKey){
+      const rawCode = String(input.value || '').trim();
+      const newSubMatch = rawCode.match(/^(\d{3}(?:\.\d{2})+)$/);
+      const newSubCode = newSubMatch ? newSubMatch[1] : '';
+      if (newSubCode && !accountExistsInPlan(newSubCode)){
+        e.preventDefault();
+        e.stopPropagation();
+        startMissingSubaccountFlow(newSubCode, input);
+        return;
+      }
+      let moved = false;
       const code = getAccountCodeFromInput(input);
       if (code){
-        selectByCode(code);
+        moved = selectByCode(code);
       } else if (input.dataset.prevCode){
         setAccountInputCode(input, input.dataset.prevCode);
+        moved = true;
       }
       hideList();
+      if (moved){
+        e.preventDefault();
+        focusNextVoucherField();
+      }
       e.stopPropagation();
       return;
     }
@@ -2977,7 +3060,8 @@ document.addEventListener('change', (e)=>{
 
     if (btn){
       btn.disabled = READONLY_MODE || !canSave;
-      btn.title = disabledReason;
+      const saveShortcutHint = 'Kısayol: Ctrl+S';
+      btn.title = disabledReason ? `${disabledReason}\n${saveShortcutHint}` : saveShortcutHint;
       if (!READONLY_MODE){
         if (warnState) btn.classList.add('status-warn');
         else if (canSave) btn.classList.add('status-ok');
@@ -3062,9 +3146,10 @@ function setVoucherEditable(isEditable){
     return String(next);
   }
 
-  function newVoucher(){
+  function newVoucher(defaultDate = null, focusDateField = false){
     CURRENT_VOUCHER_ORIGINAL_KEY = null;
-    document.getElementById('v_tarih').value = ymd(new Date());
+    const nextDate = defaultDate ? ymd(defaultDate) : ymd(new Date());
+    document.getElementById('v_tarih').value = nextDate;
     document.getElementById('v_fisno').value = nextVoucherNo();
     document.getElementById('v_desc').value = '';
     document.querySelector('#voucherTable tbody').innerHTML='';
@@ -3074,6 +3159,11 @@ function setVoucherEditable(isEditable){
 
     FORM_DIRTY = false;
     setSavedMessage(false);
+
+    if (focusDateField){
+      const dateEl = document.getElementById('v_tarih');
+      dateEl?.focus();
+    }
   }
 
   function upsertVoucher(v, originalKey = null){
@@ -3105,7 +3195,14 @@ function setVoucherEditable(isEditable){
     if (idx < 0){
       idx = DB.vouchers.findIndex(x=>String(x.no)===keyNo && ymd(x.date)===keyDate);
     }
-    if(idx>=0) DB.vouchers[idx]=v; else DB.vouchers.push(v);
+    if(idx>=0){
+      const prev = DB.vouchers[idx] || {};
+      v.createdAt = v.createdAt || prev.createdAt || new Date().toISOString();
+      DB.vouchers[idx]=v;
+    } else {
+      v.createdAt = v.createdAt || new Date().toISOString();
+      DB.vouchers.push(v);
+    }
     saveDB();
   }
 
@@ -3130,9 +3227,10 @@ function setVoucherEditable(isEditable){
     refreshVoucherList();
     renderMizan();
 
-    // "Kaydedildi" göründükten 1 sn sonra yeni fişe geç
+    // "Kaydedildi" göründükten 1 sn sonra yeni fişe geç:
+    // tarih son kaydedilen fişle aynı gelsin ve imleç tarih alanında olsun.
     setTimeout(() => {
-      document.getElementById('v_new').click();
+      newVoucher(v.date, true);
     }, 1000);
 
   }catch(e){
@@ -3196,7 +3294,28 @@ function deleteVoucher(){
       opt.value = ymd(v.date) + '|' + v.no;
       const td = v.lines.reduce((s,x)=>s+toNum(x.debit),0);
       const tc = v.lines.reduce((s,x)=>s+toNum(x.credit),0);
-      opt.textContent = `${v.no} — ${dmyFromISO(v.date)}${v.desc ? ' — ' + v.desc : ''} (B:${fmt(td)} / A:${fmt(tc)})`;
+      const debitMain = [];
+      const creditMain = [];
+      const debitSeen = new Set();
+      const creditSeen = new Set();
+      (v.lines || []).forEach(ln=>{
+        const acc = String(ln?.account || '').trim();
+        if (!acc) return;
+        const mainCode = acc.split('.')[0];
+        if (!mainCode) return;
+        if (toNum(ln?.debit) > 0 && !debitSeen.has(mainCode)){
+          debitSeen.add(mainCode);
+          debitMain.push(mainCode);
+        }
+        if (toNum(ln?.credit) > 0 && !creditSeen.has(mainCode)){
+          creditSeen.add(mainCode);
+          creditMain.push(mainCode);
+        }
+      });
+      const debitText = debitMain.length ? debitMain.join(',') : '-';
+      const creditText = creditMain.length ? creditMain.join(',') : '-';
+      const totalText = fmt(Math.abs(td - tc) < 0.005 ? td : Math.max(td, tc));
+      opt.textContent = `${v.no} — ${dmyFromISO(v.date)}${v.desc ? ' — ' + v.desc : ''} (B: ${debitText} / A: ${creditText}) (T: ${totalText})`;
       sel.appendChild(opt);
     });
   }
@@ -7221,6 +7340,77 @@ function applyTemplateByKey(key){
 // YENİ: FİŞ LİSTESİ RAPORU MODAL İŞLEVLERİ
 // ===================================
 
+function sortVouchersChronologicallyAndRenumber(){
+  if (!Array.isArray(DB.vouchers) || DB.vouchers.length === 0){
+    alert('Sıralanacak fiş bulunamadı.');
+    return;
+  }
+
+  const approved = confirm('fişler tarih sırasına göre yeniden sıralanacak.\nTamam: devam et\nVazgeç: iptal et');
+  if (!approved) return;
+
+  if (ensureVoucherCreatedAt()) saveDB();
+
+  let currentStableCreatedAt = '';
+  let currentKeyAfterSort = '';
+  if (CURRENT_VOUCHER_ORIGINAL_KEY){
+    const sep = CURRENT_VOUCHER_ORIGINAL_KEY.indexOf('|');
+    if (sep > -1){
+      const oldDate = CURRENT_VOUCHER_ORIGINAL_KEY.slice(0, sep);
+      const oldNo = CURRENT_VOUCHER_ORIGINAL_KEY.slice(sep + 1);
+      const currentVoucher = DB.vouchers.find(x=> ymd(x.date) === oldDate && String(x.no) === oldNo);
+      currentStableCreatedAt = String(currentVoucher?.createdAt || '');
+    }
+  }
+
+  const ordered = DB.vouchers.map((v, idx)=>({
+    voucher: v,
+    idx,
+    noNum: toVoucherNoNum(v.no)
+  }));
+
+  ordered.sort((a,b)=>{
+    const da = ymd(a.voucher.date);
+    const db = ymd(b.voucher.date);
+    const byDate = da.localeCompare(db);
+    if (byDate !== 0) return byDate;
+
+    const ta = Date.parse(String(a.voucher.createdAt || ''));
+    const tb = Date.parse(String(b.voucher.createdAt || ''));
+    if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+    if (!Number.isNaN(ta) && Number.isNaN(tb)) return -1;
+    if (Number.isNaN(ta) && !Number.isNaN(tb)) return 1;
+
+    const byNo = a.noNum - b.noNum;
+    if (byNo !== 0) return byNo;
+    return a.idx - b.idx;
+  });
+
+  DB.vouchers = ordered.map((entry, i)=>{
+    entry.voucher.no = String(i + 1);
+    return entry.voucher;
+  });
+
+  if (currentStableCreatedAt){
+    const updatedCurrent = DB.vouchers.find(v=> String(v.createdAt || '') === currentStableCreatedAt);
+    if (updatedCurrent){
+      currentKeyAfterSort = ymd(updatedCurrent.date) + '|' + String(updatedCurrent.no);
+      CURRENT_VOUCHER_ORIGINAL_KEY = currentKeyAfterSort;
+      const noEl = document.getElementById('v_fisno');
+      if (noEl) noEl.value = String(updatedCurrent.no);
+    }
+  }
+
+  saveDB();
+  refreshVoucherList();
+  if (currentKeyAfterSort){
+    const sel = document.getElementById('v_select');
+    if (sel) sel.value = currentKeyAfterSort;
+  }
+  renderMizan();
+  showVoucherListModal();
+}
+
 /** Fiş listesi raporunu gösterir */
 function showVoucherListModal() {
   const modal = document.getElementById('voucherListModal');
@@ -7245,7 +7435,7 @@ function showVoucherListModal() {
       const total = (v.lines || []).reduce((sum, line) => sum + toNum(line.debit), 0);
 
       return `
-        <tr>
+        <tr data-voucher-key="${key}">
           <td style="text-align:center;">
             <input type="radio" name="selectedVoucher" value="${key}" />
           </td>
@@ -7257,6 +7447,21 @@ function showVoucherListModal() {
       `;
     }).join('');
     tbody.innerHTML = rowsHTML;
+
+    tbody.querySelectorAll('tr[data-voucher-key]').forEach(tr=>{
+      tr.addEventListener('click', (e)=>{
+        if (e.target.closest('input[type="radio"]')) return;
+        const radio = tr.querySelector('input[name="selectedVoucher"]');
+        if (radio) radio.checked = true;
+      });
+      tr.addEventListener('dblclick', ()=>{
+        const key = tr.dataset.voucherKey || '';
+        if (!key) return;
+        document.getElementById('v_select').value = key;
+        loadSelectedVoucher();
+        hideVoucherListModal();
+      });
+    });
   }
 
   modal.classList.add('show');
@@ -7884,7 +8089,28 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
       '#v_tarih, #v_fisno, #v_desc, #v_select, #voucherTable input, #v_balance, #v_save'
     )).filter(el => !el.disabled && el.offsetParent !== null);
   }
+  function focusFirstVoucherAccountInput(){
+    let firstAccInput = document.querySelector('#voucherTable tbody tr input.account-input:not(:disabled)');
+    if (!firstAccInput){
+      const newRow = addVoucherRow();
+      firstAccInput = newRow?.querySelector('input.account-input');
+    }
+    if (firstAccInput){
+      firstAccInput.focus();
+      firstAccInput.select?.();
+    }
+  }
   function focusNext(current){
+    if (current?.id === 'v_tarih'){
+      const descEl = document.getElementById('v_desc');
+      descEl?.focus();
+      descEl?.select?.();
+      return;
+    }
+    if (current?.id === 'v_desc'){
+      focusFirstVoucherAccountInput();
+      return;
+    }
     const list = focusablesInVoucher();
     const idx = list.indexOf(current);
     if (idx === list.length - 1 && current.closest('#voucherTable')){
@@ -7897,6 +8123,29 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
       list[idx+1].focus();
       if (list[idx+1].select) list[idx+1].select();
     }
+  }
+  function getVoucherCellFocusable(td){
+    if (!td) return null;
+    const el = td.querySelector('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled)');
+    return (el && el.offsetParent !== null) ? el : null;
+  }
+  function moveVoucherFocusBy(rowDelta, colDelta, fromEl){
+    const fromTd = fromEl?.closest?.('#voucherTable tbody td');
+    const fromTr = fromTd?.parentElement;
+    if (!fromTd || !fromTr) return false;
+    const rows = Array.from(document.querySelectorAll('#voucherTable tbody tr'));
+    const rowIdx = rows.indexOf(fromTr);
+    if (rowIdx < 0) return false;
+    const targetRowIdx = rowIdx + rowDelta;
+    const targetColIdx = fromTd.cellIndex + colDelta;
+    if (targetRowIdx < 0 || targetRowIdx >= rows.length) return false;
+    const targetTr = rows[targetRowIdx];
+    if (!targetTr || targetColIdx < 0 || targetColIdx >= targetTr.children.length) return false;
+    const targetEl = getVoucherCellFocusable(targetTr.children[targetColIdx]);
+    if (!targetEl) return false;
+    targetEl.focus();
+    targetEl.select?.();
+    return true;
   }
   
   // Hesap planı modalında Enter ile alt hesap ekleme
@@ -7920,7 +8169,31 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
   }
   
   document.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){
+    if ((e.ctrlKey || e.metaKey) && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+      const t = e.target;
+      if (t?.closest?.('#voucherTable tbody')){
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'ArrowUp') moveVoucherFocusBy(-1, 0, t);
+        if (e.key === 'ArrowDown') moveVoucherFocusBy(1, 0, t);
+        if (e.key === 'ArrowLeft') moveVoucherFocusBy(0, -1, t);
+        if (e.key === 'ArrowRight') moveVoucherFocusBy(0, 1, t);
+        return;
+      }
+    }
+    if (e.key === 'Tab' && !e.shiftKey && e.target?.id === 'v_tarih'){
+      e.preventDefault();
+      const descEl = document.getElementById('v_desc');
+      descEl?.focus();
+      descEl?.select?.();
+      return;
+    }
+    if (e.key === 'Tab' && !e.shiftKey && e.target?.id === 'v_desc'){
+      e.preventDefault();
+      focusFirstVoucherAccountInput();
+      return;
+    }
+    if(e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey){
       const t = e.target;
       // Hesap planı modalında Enter ile ilerleme
       if(t.closest('#coaModal')){
@@ -7940,12 +8213,22 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
 
   // ---------- Kısayol: Ctrl/⌘+S ile Kaydet ----------
   document.addEventListener('keydown', (e)=>{
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (((e.key || '').toLowerCase() === 's') || e.code === 'KeyS')) {
       e.preventDefault();
       const btn = document.getElementById('v_save');
       if (!btn.disabled) saveVoucher();
     }
   });
+
+  // ---------- Kısayol: Ctrl/⌘+Enter ile Fişi Dengele ----------
+  window.addEventListener('keydown', (e)=>{
+    const isEnter = (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter');
+    if (isEnter && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      const btn = document.getElementById('v_balance');
+      if (btn && !btn.disabled) btn.click();
+    }
+  }, true);
 
   // ---------- Odak satır takibi ----------
   document.addEventListener('focusin', (e)=>{
@@ -8063,6 +8346,7 @@ document.addEventListener('DOMContentLoaded', setupMizanColumnResize);
       showVoucherListModal();
     });
     document.getElementById('voucherListCloseBtn').addEventListener('click', hideVoucherListModal);
+    document.getElementById('voucherListSortBtn').addEventListener('click', sortVouchersChronologicallyAndRenumber);
     document.getElementById('voucherListSelectBtn').addEventListener('click', selectVoucherFromList);
     // --- EKLENECEK KOD SONU ---
 
